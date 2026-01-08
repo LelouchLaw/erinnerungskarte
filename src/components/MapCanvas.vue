@@ -11,6 +11,9 @@ const el = ref(null)
 let map
 
 // Leaflet-Karte initialisieren
+// MVVM = Model-View-ViewModel
+// MVC = Model-View-Controller
+
 onMounted(() => {
   map = L.map(el.value).setView([52.52, 13.405], 5)
 
@@ -42,5 +45,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.map { height: calc(100vh - 56px); width: 100%; }
+.map {
+  height: calc(100vh - 56px);  /* 56px = .topbar-Höhe */
+  width: 100%;
+  z-index: 0;                  /* unter dem Header bleiben */
+}
+
 </style>
