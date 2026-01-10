@@ -1,4 +1,33 @@
 <template>
+  <div>
+    <nav>
+      <RouterLink to="/">Home</RouterLink>
+      |
+      <RouterLink to="/map">Map</RouterLink>
+      |
+      <RouterLink to="/pins">Pins</RouterLink>
+    </nav>
+
+    <RouterView />
+  </div>
+</template>
+
+<script setup>
+// Keine Logik hier. App.vue ist nur das Layout (Shell).
+</script>
+
+<style scoped>
+nav {
+  padding: 8px 12px;
+}
+</style>
+
+
+
+
+
+
+<!-- <template>
 <AppHeader
   :suggestions="suggestions"
   @input="onHeaderInput"
@@ -7,6 +36,17 @@
   @open-album="showAlbumModal = true"
 />
   <MapCanvas ref="mapRef" />
+    <div>
+    <nav>
+      <RouterLink to="/">Home</RouterLink>
+      |
+      <RouterLink to="/map">Map</RouterLink>
+      |
+      <RouterLink to="/pins">Pins</RouterLink>
+    </nav>
+
+    <RouterView />
+  </div>
 </template>
 
 <script setup>
@@ -89,4 +129,19 @@ function onSelectSuggestion(item) {
   mapRef.value?.setView(item.latitude, item.longitude, 12)
 }
 
-</script>
+function createPin(lat, lng, description) {
+  const id = crypto.randomUUID();
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  const text = String(description).trim();
+
+  return {
+    id: id,
+    lat: latitude,
+    lng: longitude,
+    description: text
+  };
+}
+
+
+</script> -->
