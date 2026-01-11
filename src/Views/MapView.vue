@@ -11,6 +11,7 @@
     <div class="map-wrap">
       <MapCanvas ref="mapRef" @map-click="onMapClick" />
 
+      <!-- Klick-Koordinaten Overlay -->
       <div class="overlay" v-if="lastClick">
         <div class="overlay-title">Letzter Klick</div>
         <div class="overlay-text">
@@ -19,7 +20,7 @@
         </div>
       </div>
 
-      <!-- Formular Overlay -->
+      <!-- Pin Formular -->
       <div class="pin-form" v-if="isFormOpen">
         <div class="pin-form-title">Neuer Pin</div>
 
@@ -38,40 +39,42 @@
           <input class="pin-input" type="date" v-model="formDate" />
         </div>
 
-        <!-- Medien (neu) -->
+        <!-- Echter Upload -->
         <div class="pin-form-row">
-          <div class="pin-form-label">Medium hinzufügen (URL)</div>
+          <div class="pin-form-label">Medien hochladen (Foto/Video)</div>
 
-          <div class="media-add">
-            <select class="pin-input small" v-model="mediaType">
-              <option value="image">Bild</option>
-              <option value="video">Video</option>
-            </select>
+          <input
+            class="pin-input"
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            @change="onFilesSelected"
+          />
 
-            <input
-              class="pin-input"
-              type="text"
-              v-model="mediaUrl"
-              placeholder="https://..."
-            />
-
-            <button class="btn small" @click="addMediaUrl">Hinzufügen</button>
+          <div class="media-list" v-if="selectedFiles.length > 0">
+            <div class="media-item" v-for="(f, i) in selectedFiles" :key="i">
+              <div class="media-text">
+                <span class="badge">{{ fileTypeLabel(f.type) }}</span>
+                <span class="url">{{ f.name }}</span>
+              </div>
+              <button class="btn small secondary" @click="removeSelectedFile(i)">
+                Entfernen
+              </button>
+            </div>
           </div>
 
-          <div class="media-list" v-if="mediaList.length > 0">
-            <div class="media-item" v-for="(m, i) in mediaList" :key="i">
-              <div class="media-text">
-                <span class="badge">{{ m.type }}</span>
-                <span class="url">{{ m.url }}</span>
-              </div>
-              <button class="btn small secondary" @click="removeMedia(i)">Entfernen</button>
-            </div>
+          <div class="media-hint" v-if="selectedFiles.length > 0">
+            Hinweis: Dateien werden im Browser (IndexedDB) gespeichert.
           </div>
         </div>
 
         <div class="pin-form-actions">
-          <button class="btn" @click="savePin">Speichern</button>
-          <button class="btn secondary" @click="cancelPin">Abbrechen</button>
+          <button class="btn" @click="savePin" :disabled="isSaving">
+            {{ isSaving ? 'Speichern…' : 'Speichern' }}
+          </button>
+          <button class="btn secondary" @click="cancelPin" :disabled="isSaving">
+            Abbrechen
+          </button>
         </div>
 
         <div class="pin-form-hint" v-if="formError">
@@ -88,6 +91,7 @@ import { useRoute } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import MapCanvas from '../components/MapCanvas.vue'
 import { usePinsStore } from '../stores/pinsStore.js'
+import { saveMediaFile } from '../services/mediaDb'
 
 var route = useRoute()
 var pinsStore = usePinsStore()
@@ -99,26 +103,30 @@ var showAlbumModal = ref(false)
 
 var debounceId = null
 
+// Klick overlay
 var lastClick = ref(null)
 
+// Für Pin-Erstellung
 var selectedLatLng = ref(null)
 var isFormOpen = ref(false)
 var formDescription = ref('')
 var formDate = ref('')
 var formError = ref('')
 
-// Medien-State (neu)
-var mediaType = ref('image')
-var mediaUrl = ref('')
-var mediaList = ref([]) // [{ type, url }, ...]
+// Upload state
+var selectedFiles = ref([])
+var isSaving = ref(false)
 
 onMounted(function () {
+  // 1) Pins laden
   pinsStore.loadPins()
 
+  // 2) Marker rendern
   if (mapRef.value && mapRef.value.renderAllPins) {
     mapRef.value.renderAllPins(pinsStore.pins)
   }
 
+  // 3) Falls /map?pinId=... gesetzt ist -> Pin fokussieren
   focusPinFromRoute()
 })
 
@@ -142,42 +150,41 @@ function onMapClick(payload) {
     mapRef.value.setPreviewMarker(payload.lat, payload.lng)
   }
 
-  // Formular öffnen + reset
+  // Formular öffnen + Felder reset
   isFormOpen.value = true
   formError.value = ''
   formDescription.value = ''
   formDate.value = ''
-
-  mediaType.value = 'image'
-  mediaUrl.value = ''
-  mediaList.value = []
+  selectedFiles.value = []
 }
 
-function addMediaUrl() {
-  var url = String(mediaUrl.value ?? '').trim()
-  if (!url) return
+function onFilesSelected(event) {
+  var files = event && event.target && event.target.files ? event.target.files : null
+  if (!files) return
 
-  // Minimalprüfung: muss wie URL aussehen (sehr grob)
-  if (url.indexOf('http://') !== 0 && url.indexOf('https://') !== 0) {
-    formError.value = 'Bitte eine URL mit http:// oder https:// eingeben.'
-    return
+  var arr = []
+  var i
+  for (i = 0; i < files.length; i = i + 1) {
+    arr.push(files[i])
   }
 
-  formError.value = ''
-
-  mediaList.value.push({
-    type: String(mediaType.value),
-    url: url
-  })
-
-  mediaUrl.value = ''
+  selectedFiles.value = arr
 }
 
-function removeMedia(index) {
-  mediaList.value.splice(index, 1)
+function removeSelectedFile(index) {
+  selectedFiles.value.splice(index, 1)
 }
 
-function savePin() {
+function fileTypeLabel(mime) {
+  var t = String(mime || '')
+  if (t.indexOf('image/') === 0) return 'image'
+  if (t.indexOf('video/') === 0) return 'video'
+  return 'file'
+}
+
+async function savePin() {
+  if (isSaving.value) return
+
   var desc = String(formDescription.value ?? '').trim()
   if (!desc) {
     formError.value = 'Bitte gib eine Beschreibung ein.'
@@ -188,30 +195,65 @@ function savePin() {
     return
   }
 
-  var lat = selectedLatLng.value.lat
-  var lng = selectedLatLng.value.lng
-
-  var pin = createPin(lat, lng, desc, formDate.value, mediaList.value)
-
-  pinsStore.addPin(pin)
-
-  if (mapRef.value && mapRef.value.renderAllPins) {
-    mapRef.value.renderAllPins(pinsStore.pins)
-  }
-
-  if (mapRef.value && mapRef.value.clearPreviewMarker) {
-    mapRef.value.clearPreviewMarker()
-  }
-
-  isFormOpen.value = false
-  selectedLatLng.value = null
-  formDescription.value = ''
-  formDate.value = ''
+  isSaving.value = true
   formError.value = ''
 
-  mediaType.value = 'image'
-  mediaUrl.value = ''
-  mediaList.value = []
+  try {
+    var lat = selectedLatLng.value.lat
+    var lng = selectedLatLng.value.lng
+
+    // 1) Upload in IndexedDB -> Media Refs sammeln
+    var mediaRefs = []
+    var i
+    for (i = 0; i < selectedFiles.value.length; i = i + 1) {
+      var file = selectedFiles.value[i]
+
+      // einfache Größenbegrenzung (MVP)
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error('Eine Datei ist größer als 50MB. Bitte kleinere Datei wählen.')
+      }
+
+      var meta = await saveMediaFile(file)
+
+      var mime = String(meta.mime || '')
+      var type = 'file'
+      if (mime.indexOf('image/') === 0) type = 'image'
+      if (mime.indexOf('video/') === 0) type = 'video'
+
+      mediaRefs.push({
+        id: meta.id,
+        type: type,
+        mime: meta.mime,
+        name: meta.name
+      })
+    }
+
+    // 2) Pin erzeugen (mit mediaRefs)
+    var pin = createPin(lat, lng, desc, formDate.value, mediaRefs)
+
+    // 3) Pin speichern (Pinia + LocalStorage)
+    pinsStore.addPin(pin)
+
+    // 4) Marker neu rendern
+    if (mapRef.value && mapRef.value.renderAllPins) {
+      mapRef.value.renderAllPins(pinsStore.pins)
+    }
+
+    // 5) Preview weg + UI reset
+    if (mapRef.value && mapRef.value.clearPreviewMarker) {
+      mapRef.value.clearPreviewMarker()
+    }
+
+    isFormOpen.value = false
+    selectedLatLng.value = null
+    formDescription.value = ''
+    formDate.value = ''
+    selectedFiles.value = []
+  } catch (e) {
+    formError.value = e && e.message ? e.message : 'Speichern fehlgeschlagen.'
+  } finally {
+    isSaving.value = false
+  }
 }
 
 function cancelPin() {
@@ -224,10 +266,7 @@ function cancelPin() {
   formDescription.value = ''
   formDate.value = ''
   formError.value = ''
-
-  mediaType.value = 'image'
-  mediaUrl.value = ''
-  mediaList.value = []
+  selectedFiles.value = []
 }
 
 function createPin(lat, lng, description, dateValue, mediaArray) {
@@ -239,7 +278,6 @@ function createPin(lat, lng, description, dateValue, mediaArray) {
   var d = String(dateValue ?? '').trim()
   if (!d) d = null
 
-  // mediaArray sollte eine Liste sein
   var media = Array.isArray(mediaArray) ? mediaArray : []
 
   return {
@@ -369,7 +407,7 @@ async function fetchSuggestions(text) {
   right: 12px;
   bottom: 12px;
   z-index: 4500;
-  width: 360px;
+  width: 380px;
   background: rgba(14, 20, 42, 0.96);
   border: 1px solid rgba(43, 55, 99, 0.9);
   border-radius: 14px;
@@ -390,16 +428,6 @@ async function fetchSuggestions(text) {
   color: #e8eefc;
   padding: 0 10px;
   outline: none;
-}
-.pin-input.small {
-  width: 90px;
-  flex: 0 0 90px;
-}
-
-.media-add {
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .media-list {
@@ -439,7 +467,13 @@ async function fetchSuggestions(text) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+  max-width: 200px;
+}
+
+.media-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 .pin-form-actions { display: flex; gap: 8px; margin-top: 6px; }
