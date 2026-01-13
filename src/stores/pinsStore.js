@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { deleteMedia } from '../services/mediaDb'
+
 
 var STORAGE_KEY = 'memorymap_pins_v1'
 
@@ -99,7 +101,43 @@ export const usePinsStore = defineStore('pins', {
         return
         }
     }
+    },
+
+    deletePinAndMedia: async function (id) {
+    // 1) Pin finden
+    var pin = this.getPinById(id)
+    if (!pin) return
+
+    // 2) Medien löschen (falls vorhanden)
+    if (pin.media && Array.isArray(pin.media)) {
+      var i
+      for (i = 0; i < pin.media.length; i = i + 1) {
+        var m = pin.media[i]
+        if (m && m.id) {
+          try {
+            await deleteMedia(String(m.id))
+          } catch (e) {
+            // Wenn das Löschen fehlschlägt, löschen wir trotzdem den Pin.
+            // Optional könntest du hier später eine Warnung anzeigen.
+          }
+        }
+      }
     }
 
+    // 3) Pin aus Store entfernen
+    var idx = -1
+    var j
+    for (j = 0; j < this.pins.length; j = j + 1) {
+      if (this.pins[j].id === id) {
+        idx = j
+        break
+      }
+    }
+
+    if (idx >= 0) {
+      this.pins.splice(idx, 1)
+      this.savePins()
+    }
+  }
   }
 })

@@ -73,10 +73,11 @@ function openOnMap(id) {
   router.push({ path: '/map', query: { pinId: id } })
 }
 
-function deletePin(id) {
+async function deletePin(id) {
   var ok = window.confirm('Diesen Pin wirklich löschen?')
   if (!ok) return
-  pinsStore.removePinById(id)
+
+  await pinsStore.deletePinAndMedia(id)
 }
 
 /* --- Edit State --- */
