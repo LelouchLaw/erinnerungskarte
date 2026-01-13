@@ -195,6 +195,12 @@ async function savePin() {
     return
   }
 
+  // NEU: Medien sind Pflicht
+  if (!selectedFiles.value || selectedFiles.value.length === 0) {
+    formError.value = 'Bitte mindestens ein Foto oder Video hochladen.'
+    return
+  }
+
   isSaving.value = true
   formError.value = ''
 
@@ -207,6 +213,7 @@ async function savePin() {
     var i
     for (i = 0; i < selectedFiles.value.length; i = i + 1) {
       var file = selectedFiles.value[i]
+      if (!file) continue
 
       // einfache Größenbegrenzung (MVP)
       if (file.size > 50 * 1024 * 1024) {
@@ -228,21 +235,32 @@ async function savePin() {
       })
     }
 
+    // NEU: Sicherheit – ohne gespeicherte Media kein Pin
+    if (mediaRefs.length === 0) {
+      throw new Error('Upload fehlgeschlagen. Keine Dateien gespeichert.')
+    }
+
     // 2) Pin erzeugen (mit mediaRefs)
     var pin = createPin(lat, lng, desc, formDate.value, mediaRefs)
 
     // 3) Pin speichern (Pinia + LocalStorage)
     pinsStore.addPin(pin)
 
-    // 4) Marker neu rendern
+    // Marker neu rendern
     if (mapRef.value && mapRef.value.renderAllPins) {
       mapRef.value.renderAllPins(pinsStore.pins)
     }
 
-    // 5) Preview weg + UI reset
+    // NEU: Karte auf den neuen Pin fokussieren
+    if (mapRef.value && mapRef.value.focusPin) {
+      mapRef.value.focusPin(pin)
+    }
+
+    // Preview weg + UI reset
     if (mapRef.value && mapRef.value.clearPreviewMarker) {
       mapRef.value.clearPreviewMarker()
     }
+
 
     isFormOpen.value = false
     selectedLatLng.value = null
@@ -256,6 +274,7 @@ async function savePin() {
   }
 }
 
+pinsStore.addPin
 function cancelPin() {
   if (mapRef.value && mapRef.value.clearPreviewMarker) {
     mapRef.value.clearPreviewMarker()
@@ -379,6 +398,8 @@ async function fetchSuggestions(text) {
     suggestions.value = []
   }
 }
+
+
 </script>
 
 <style scoped>

@@ -10,7 +10,7 @@ import { getMediaBlob } from '../services/mediaDb'
 const emit = defineEmits(['map-click'])
 
 const el = ref(null)
-let map
+let map = null
 
 let previewMarker = null
 let pinsLayer = null
@@ -19,28 +19,13 @@ let markersById = null
 // ObjectURLs merken, damit wir sie später revoken können
 let markerObjectUrls = []
 
-onMounted(function () {
-  map = L.map(el.value).setView([52.52, 13.405], 5)
-
-  L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png',
-    {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      maxZoom: 19
-    }
-  ).addTo(map)
-
-  pinsLayer = L.layerGroup().addTo(map)
-  markersById = {}
-
-  map.on('click', function (event) {
-    emit('map-click', { lat: event.latlng.lat, lng: event.latlng.lng })
-  })
-
-  setTimeout(function () {
-    if (map) map.invalidateSize()
-  }, 0)
-})
+function ensureMapDestroyed() {
+  if (map) {
+    map.off()
+    map.remove()
+    map = null
+  }
+}
 
 function cleanupMarkerObjectUrls() {
   var i
@@ -52,6 +37,59 @@ function cleanupMarkerObjectUrls() {
     }
   }
   markerObjectUrls = []
+}
+
+function initMap() {
+  if (!el.value) return
+
+  // Hot-Reload / Re-mount Safety:
+  if (el.value && el.value._leaflet_id) {
+    try {
+      delete el.value._leaflet_id
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  ensureMapDestroyed()
+
+  map = L.map(el.value, {
+    zoomControl: false,
+    worldCopyJump: false,
+    maxBounds: L.latLngBounds(L.latLng(-85, -180), L.latLng(85, 180)),
+    maxBoundsViscosity: 1.0,
+    minZoom: 2,
+    maxZoom: 19
+  }).setView([52.52, 13.405], 5)
+
+  L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png',
+    {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      maxZoom: 19,
+      noWrap: true
+    }
+  ).addTo(map)
+
+  // Zoom Buttons unten rechts
+  L.control.zoom({ position: 'bottomright' }).addTo(map)
+
+  // Wenn Zoom geändert wird: Asset-Pins neu skalieren
+  map.on('zoomend', function () {
+    updateAssetMarkerIconsForZoom()
+  })
+
+  pinsLayer = L.layerGroup().addTo(map)
+  markersById = {}
+
+  map.on('click', function (event) {
+    emit('map-click', { lat: event.latlng.lat, lng: event.latlng.lng })
+  })
+
+  // Layout-Glitch vermeiden
+  setTimeout(function () {
+    if (map) map.invalidateSize()
+  }, 0)
 }
 
 function setView(lat, lng, zoom) {
@@ -80,8 +118,6 @@ function clearPreviewMarker() {
 }
 
 function buildCaption(pin) {
-  // Du kannst das später schöner machen.
-  // Beispiel: "Beschreibung, 2021"
   var year = ''
   if (pin.date) {
     var s = String(pin.date)
@@ -92,27 +128,7 @@ function buildCaption(pin) {
   return String(pin.description)
 }
 
-function makePhotoIcon(imageUrl, caption) {
-  // DivIcon: HTML + CSS
-  var html =
-    '<div class="photo-pin">' +
-      '<div class="photo-frame">' +
-        '<img class="photo-img" src="' + imageUrl + '" />' +
-      '</div>' +
-      '<div class="photo-caption">' + escapeHtml(caption) + '</div>' +
-      '<div class="photo-needle"></div>' +
-    '</div>'
-
-  return L.divIcon({
-    className: 'photo-pin-wrapper',
-    html: html,
-    iconSize: [140, 160],
-    iconAnchor: [70, 160] // unten Mitte sitzt auf Koordinate
-  })
-}
-
 function escapeHtml(str) {
-  // Minimal: verhindert, dass HTML in description kaputt macht
   var s = String(str ?? '')
   s = s.replaceAll('&', '&amp;')
   s = s.replaceAll('<', '&lt;')
@@ -122,56 +138,160 @@ function escapeHtml(str) {
   return s
 }
 
+function getAssetPinSize(zoom) {
+  var z = Number(zoom)
+
+  if (z <= 4) return { w: 90, h: 110 }
+  if (z <= 7) return { w: 110, h: 130 }
+  return { w: 140, h: 160 }
+}
+
+function makeLoadingIcon() {
+  var html =
+    '<div class="asset-pin loading">' +
+      '<div class="asset-frame"></div>' +
+      '<div class="asset-caption">Lade…</div>' +
+      '<div class="asset-needle"></div>' +
+    '</div>'
+
+  return L.divIcon({
+    className: 'asset-pin-wrapper',
+    html: html,
+    iconSize: [110, 130],
+    iconAnchor: [55, 130]
+  })
+}
+
+function makeImageIcon(imageUrl, caption, width, height) {
+  var w = Number(width)
+  var h = Number(height)
+  var frameH = Math.round(h * 0.69)
+
+  var html =
+    '<div class="asset-pin" style="width:' + w + 'px">' +
+      '<div class="asset-frame" style="width:' + w + 'px; height:' + frameH + 'px">' +
+        '<img class="asset-img" src="' + imageUrl + '" />' +
+      '</div>' +
+      '<div class="asset-caption">' + escapeHtml(caption) + '</div>' +
+      '<div class="asset-needle"></div>' +
+    '</div>'
+
+  return L.divIcon({
+    className: 'asset-pin-wrapper',
+    html: html,
+    iconSize: [w, h],
+    iconAnchor: [Math.round(w / 2), h]
+  })
+}
+
+function makeVideoIcon(caption, width, height) {
+  var w = Number(width)
+  var h = Number(height)
+  var frameH = Math.round(h * 0.69)
+
+  var html =
+    '<div class="asset-pin video" style="width:' + w + 'px">' +
+      '<div class="asset-frame" style="width:' + w + 'px; height:' + frameH + 'px">' +
+        '<div class="video-badge">VIDEO</div>' +
+        '<div class="video-play">▶</div>' +
+      '</div>' +
+      '<div class="asset-caption">' + escapeHtml(caption) + '</div>' +
+      '<div class="asset-needle"></div>' +
+    '</div>'
+
+  return L.divIcon({
+    className: 'asset-pin-wrapper',
+    html: html,
+    iconSize: [w, h],
+    iconAnchor: [Math.round(w / 2), h]
+  })
+}
+
 function addPinMarker(pin) {
   if (!pinsLayer) return
   if (!markersById) markersById = {}
 
-  // Default marker erst mal
-  var m = L.marker([pin.lat, pin.lng])
+  // WICHTIG: kein Standardmarker mehr -> direkt Custom (Loading)
+  var marker = L.marker([pin.lat, pin.lng], { icon: makeLoadingIcon() })
 
-  // Popup (optional)
   var text = pin.description
   if (pin.date) {
     text = text + '<br />' + pin.date
   }
-  m.bindPopup(text)
+  marker.bindPopup(text)
 
-  pinsLayer.addLayer(m)
-  markersById[pin.id] = m
+  pinsLayer.addLayer(marker)
+  markersById[pin.id] = marker
 
-  // Wenn Pin ein Bild-Medium hat -> später Icon austauschen
-  setMarkerPhotoIfPossible(m, pin)
+  // Asset laden und Icon ersetzen (immer noch EIN Icon)
+  setMarkerAssetIcon(marker, pin)
 }
 
-async function setMarkerPhotoIfPossible(marker, pin) {
+async function setMarkerAssetIcon(marker, pin) {
   try {
     if (!pin || !pin.media || !Array.isArray(pin.media)) return
     if (pin.media.length === 0) return
 
-    // Wir nehmen das erste Bild aus media
-    var i
+    // Priorität: Erstes Bild, sonst erstes Video
     var media = null
+    var i
+
     for (i = 0; i < pin.media.length; i = i + 1) {
-      var m = pin.media[i]
-      if (m && m.type === 'image' && m.id) {
-        media = m
+      var m1 = pin.media[i]
+      if (m1 && m1.type === 'image' && m1.id) {
+        media = m1
         break
       }
     }
+
+    if (!media) {
+      for (i = 0; i < pin.media.length; i = i + 1) {
+        var m2 = pin.media[i]
+        if (m2 && m2.type === 'video' && m2.id) {
+          media = m2
+          break
+        }
+      }
+    }
+
     if (!media) return
 
-    var blob = await getMediaBlob(String(media.id))
-    if (!blob) return
-
-    var url = URL.createObjectURL(blob)
-    markerObjectUrls.push(url)
-
     var caption = buildCaption(pin)
-    var icon = makePhotoIcon(url, caption)
 
-    marker.setIcon(icon)
+    var currentZoom = 8
+    if (map && map.getZoom) currentZoom = map.getZoom()
+    var size = getAssetPinSize(currentZoom)
+
+    // Bild: Blob laden -> ObjectURL -> ImageIcon
+    if (media.type === 'image') {
+      var blob = await getMediaBlob(String(media.id))
+      if (!blob) return
+
+      var url = URL.createObjectURL(blob)
+      markerObjectUrls.push(url)
+
+      marker.__assetData = {
+        type: 'image',
+        imageUrl: url,
+        caption: caption
+      }
+
+      marker.setIcon(makeImageIcon(url, caption, size.w, size.h))
+      return
+    }
+
+    // Video: MVP-Icon ohne Thumbnail (konsistent und sauber)
+    if (media.type === 'video') {
+      marker.__assetData = {
+        type: 'video',
+        caption: caption
+      }
+
+      marker.setIcon(makeVideoIcon(caption, size.w, size.h))
+      return
+    }
   } catch (e) {
-    // wenn etwas schiefgeht: Marker bleibt normal
+    // bleibt Loading-Icon (immer noch EIN Icon)
   }
 }
 
@@ -201,6 +321,31 @@ function focusPin(pin) {
   }
 }
 
+function updateAssetMarkerIconsForZoom() {
+  if (!map) return
+  if (!markersById) return
+
+  var size = getAssetPinSize(map.getZoom())
+  var ids = Object.keys(markersById)
+
+  var i
+  for (i = 0; i < ids.length; i = i + 1) {
+    var id = ids[i]
+    var marker = markersById[id]
+    if (!marker) continue
+
+    if (marker.__assetData && marker.__assetData.type === 'image' && marker.__assetData.imageUrl) {
+      marker.setIcon(makeImageIcon(marker.__assetData.imageUrl, marker.__assetData.caption, size.w, size.h))
+      continue
+    }
+
+    if (marker.__assetData && marker.__assetData.type === 'video') {
+      marker.setIcon(makeVideoIcon(marker.__assetData.caption, size.w, size.h))
+      continue
+    }
+  }
+}
+
 defineExpose({
   setView: setView,
   setPreviewMarker: setPreviewMarker,
@@ -210,12 +355,13 @@ defineExpose({
   focusPin: focusPin
 })
 
+onMounted(function () {
+  initMap()
+})
+
 onBeforeUnmount(function () {
   cleanupMarkerObjectUrls()
-  if (map) {
-    map.remove()
-    map = null
-  }
+  ensureMapDestroyed()
 })
 </script>
 
@@ -226,37 +372,37 @@ onBeforeUnmount(function () {
   z-index: 0;
 }
 
-/* --- Foto-Pin Styling --- */
-:global(.photo-pin-wrapper) {
+/* Wrapper muss transparent sein */
+:global(.asset-pin-wrapper) {
   background: transparent;
   border: 0;
 }
 
-:global(.photo-pin) {
-  width: 140px;
+/* Pin-Container: Größe kommt aus Inline-Style */
+:global(.asset-pin) {
   user-select: none;
   pointer-events: auto;
   transform: translateY(-6px);
 }
 
-:global(.photo-frame) {
-  width: 140px;
-  height: 110px;
+/* Frame: Größe kommt aus Inline-Style */
+:global(.asset-frame) {
   border-radius: 10px;
   overflow: hidden;
   background: #ffffff;
   border: 3px solid #ffffff;
   box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+  position: relative;
 }
 
-:global(.photo-img) {
+:global(.asset-img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-:global(.photo-caption) {
+:global(.asset-caption) {
   margin-top: 8px;
   background: rgba(255,255,255,0.95);
   color: #111827;
@@ -268,17 +414,17 @@ onBeforeUnmount(function () {
   box-shadow: 0 10px 18px rgba(0,0,0,0.18);
 }
 
-:global(.photo-needle) {
+:global(.asset-needle) {
   width: 12px;
   height: 12px;
-  background: #e11d48; /* roter Pin */
+  background: #e11d48;
   border-radius: 999px;
   margin: 8px auto 0 auto;
   box-shadow: 0 6px 10px rgba(0,0,0,0.25);
   position: relative;
 }
 
-:global(.photo-needle:after) {
+:global(.asset-needle:after) {
   content: '';
   position: absolute;
   left: 50%;
@@ -288,5 +434,44 @@ onBeforeUnmount(function () {
   height: 18px;
   background: rgba(0,0,0,0.25);
   border-radius: 2px;
+}
+
+/* Loading State */
+:global(.asset-pin.loading .asset-frame) {
+  background: linear-gradient(90deg, #e5e7eb, #f3f4f6, #e5e7eb);
+}
+
+/* Video Styling */
+:global(.asset-pin.video .asset-frame) {
+  background: #111827;
+  border-color: #ffffff;
+}
+
+:global(.video-badge) {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.65);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+:global(.video-play) {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
 }
 </style>
