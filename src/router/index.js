@@ -1,8 +1,8 @@
 import {createRouter, createWebHistory} from 'vue-router';
-import HomeView from '../Views/HomeView.vue';
-import MapView from '../Views/MapView.vue';
-import PinsView from '../Views/PinsView.vue';
-import PinDetailsView from '../Views/PinDetailsView.vue';
+import HomeView from '../views/HomeView.vue';
+import MapView from '../views/MapView.vue';
+import PinsView from '../views/PinsView.vue';
+import PinDetailsView from '../views/PinDetailsView.vue';
 
 const router = createRouter({
     history: createWebHistory(),
