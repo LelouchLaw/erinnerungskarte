@@ -24,13 +24,27 @@ export const usePinsStore = defineStore('pins', {
         var data = JSON.parse(raw)
 
         if (Array.isArray(data)) {
-        // Normalisieren: alte Pins ohne media unterstützen
-        var i
-        for (i = 0; i < data.length; i = i + 1) {
-            if (!Array.isArray(data[i].media)) {
-            data[i].media = []
-            }
-        }
+        // Normalisieren: alte Pins abwärtskompatibel halten
+var i
+for (i = 0; i < data.length; i = i + 1) {
+  if (!Array.isArray(data[i].media)) {
+    data[i].media = []
+  }
+
+  // neu: tripId
+  if (data[i].tripId === undefined) {
+    data[i].tripId = null
+  }
+
+  // optional sinnvoll (für später Timeline/Sorting)
+  if (data[i].createdAt === undefined) {
+    data[i].createdAt = Date.now()
+  }
+  if (data[i].updatedAt === undefined) {
+    data[i].updatedAt = data[i].createdAt
+  }
+}
+
         this.pins = data
         } else {
         this.pins = []

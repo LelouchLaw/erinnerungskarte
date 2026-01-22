@@ -1,6 +1,15 @@
 <template>
   <div class="page">
     <h1>Pins</h1>
+    <div class="filter-row">
+      <div class="filter-label">Trip-Filter</div>
+      <select class="filter-select" v-model="selectedTripId">
+        <option value="">Alle Trips</option>
+        <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
+          {{ t.name }}
+        </option>
+      </select>
+    </div>
 
     <div class="hint" v-if="pins.length === 0">
       Noch keine Pins. Erstelle welche auf der Map.
@@ -57,17 +66,29 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePinsStore } from '../stores/pinsStore.js'
+import { useTripsStore } from '../stores/tripsStore'
 
 var router = useRouter()
 var pinsStore = usePinsStore()
+var tripsStore = useTripsStore()
+var selectedTripId = ref('')
 
 onMounted(function () {
   pinsStore.loadPins()
+  tripsStore.loadTrips()
 })
 
 var pins = computed(function () {
-  return pinsStore.pins
+  var all = pinsStore.pins
+  var t = String(selectedTripId.value ?? '').trim()
+
+  if (!t) return all
+
+  return all.filter(function (p) {
+    return String(p.tripId ?? '') === t
+  })
 })
+
 
 function openOnMap(id) {
   router.push({ path: '/map', query: { pinId: id } })
@@ -254,4 +275,27 @@ function openDetails(id) {
   font-size: 12px;
   color: #ffd1d1;
 }
+
+.filter-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-label {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.filter-select {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #2b3763;
+  background: #121a33;
+  color: #e8eefc;
+  padding: 0 10px;
+  outline: none;
+}
+
 </style>

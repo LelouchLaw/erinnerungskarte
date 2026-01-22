@@ -22,7 +22,6 @@
     </div>
   </div>
 
-  <button class="icon" @click="emit('open-album')" aria-label="Foto hochladen">📷</button>
 </header>
 
 </template>

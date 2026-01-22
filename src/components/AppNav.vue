@@ -6,6 +6,7 @@
       <RouterLink to="/" class="tab" active-class="active">Home</RouterLink>
       <RouterLink to="/map" class="tab" active-class="active">Map</RouterLink>
       <RouterLink to="/pins" class="tab" active-class="active">Pins</RouterLink>
+      <RouterLink to="/trips" class="tab" active-class="active">Trips</RouterLink>
     </nav>
   </header>
 </template>

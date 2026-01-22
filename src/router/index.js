@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue';
 import MapView from '../views/MapView.vue';
 import PinsView from '../views/PinsView.vue';
 import PinDetailsView from '../views/PinDetailsView.vue';
+import TripsView from '../views/TripsView.vue'
 
 const router = createRouter({
     history: createWebHistory(),
@@ -18,6 +19,10 @@ const router = createRouter({
         path: '/pins',
         name: 'pins',
         component: PinsView
+    }, {
+        path: '/trips',
+        name: 'trips',
+        component: TripsView
     }, {
         path: '/pin/:id',
         name: 'pin-details',

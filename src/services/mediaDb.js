@@ -117,77 +117,77 @@ export function deleteMedia(id) {
   })
 }
 
-async function savePin() {
-  formError.value = ''
+// async function savePin() {
+//   formError.value = ''
 
-  // 1) Basics prüfen
-  var desc = String(description.value ?? '').trim()
-  if (!desc) {
-    formError.value = 'Bitte eine Beschreibung eingeben.'
-    return
-  }
+//   // 1) Basics prüfen
+//   var desc = String(description.value ?? '').trim()
+//   if (!desc) {
+//     formError.value = 'Bitte eine Beschreibung eingeben.'
+//     return
+//   }
 
-  if (!pickedLatLng.value) {
-    formError.value = 'Bitte erst auf die Karte klicken.'
-    return
-  }
+//   if (!pickedLatLng.value) {
+//     formError.value = 'Bitte erst auf die Karte klicken.'
+//     return
+//   }
 
-  // 2) Medien Pflicht
-  if (!selectedFiles.value || selectedFiles.value.length === 0) {
-    formError.value = 'Bitte mindestens ein Foto oder Video hochladen.'
-    return
-  }
+//   // 2) Medien Pflicht
+//   if (!selectedFiles.value || selectedFiles.value.length === 0) {
+//     formError.value = 'Bitte mindestens ein Foto oder Video hochladen.'
+//     return
+//   }
 
-  // 3) Medien speichern (wenn das fehlschlägt -> kein Pin)
-  var mediaRefs = []
-  try {
-    var i
-    for (i = 0; i < selectedFiles.value.length; i = i + 1) {
-      var file = selectedFiles.value[i]
-      if (!file) continue
+//   // 3) Medien speichern (wenn das fehlschlägt -> kein Pin)
+//   var mediaRefs = []
+//   try {
+//     var i
+//     for (i = 0; i < selectedFiles.value.length; i = i + 1) {
+//       var file = selectedFiles.value[i]
+//       if (!file) continue
 
-      var mediaId = await saveMedia(file) 
-      // saveMedia soll eine id zurückgeben (string)
+//       var mediaId = await saveMedia(file) 
+//       // saveMedia soll eine id zurückgeben (string)
 
-      var mime = String(file.type ?? '')
-      var type = 'file'
-      if (mime.startsWith('image/')) type = 'image'
-      if (mime.startsWith('video/')) type = 'video'
+//       var mime = String(file.type ?? '')
+//       var type = 'file'
+//       if (mime.startsWith('image/')) type = 'image'
+//       if (mime.startsWith('video/')) type = 'video'
 
-      mediaRefs.push({
-        id: String(mediaId),
-        type: type,
-        name: String(file.name ?? ''),
-        mime: mime
-      })
-    }
-  } catch (e) {
-    formError.value = 'Upload fehlgeschlagen. Bitte erneut versuchen.'
-    return
-  }
+//       mediaRefs.push({
+//         id: String(mediaId),
+//         type: type,
+//         name: String(file.name ?? ''),
+//         mime: mime
+//       })
+//     }
+//   } catch (e) {
+//     formError.value = 'Upload fehlgeschlagen. Bitte erneut versuchen.'
+//     return
+//   }
 
-  if (mediaRefs.length === 0) {
-    formError.value = 'Upload fehlgeschlagen. Keine Dateien gespeichert.'
-    return
-  }
+//   if (mediaRefs.length === 0) {
+//     formError.value = 'Upload fehlgeschlagen. Keine Dateien gespeichert.'
+//     return
+//   }
 
-  // 4) Pin erstellen und speichern
-  var pin = {
-    id: crypto.randomUUID(),
-    description: desc,
-    date: date.value ? String(date.value) : '',
-    lat: Number(pickedLatLng.value.lat),
-    lng: Number(pickedLatLng.value.lng),
-    media: mediaRefs
-  }
+//   // 4) Pin erstellen und speichern
+//   var pin = {
+//     id: crypto.randomUUID(),
+//     description: desc,
+//     date: date.value ? String(date.value) : '',
+//     lat: Number(pickedLatLng.value.lat),
+//     lng: Number(pickedLatLng.value.lng),
+//     media: mediaRefs
+//   }
 
-  pinsStore.addPin(pin)
+//   pinsStore.addPin(pin)
 
-  // 5) UI reset
-  selectedFiles.value = []
-  description.value = ''
-  date.value = ''
-  pickedLatLng.value = null
-  showForm.value = false
-}
+//   // 5) UI reset
+//   selectedFiles.value = []
+//   description.value = ''
+//   date.value = ''
+//   pickedLatLng.value = null
+//   showForm.value = false
+// }
 

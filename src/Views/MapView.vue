@@ -9,6 +9,16 @@
     />
 
     <div class="map-wrap">
+      <div class="map-filter">
+      <div class="map-filter-label">Trip-Filter</div>
+      <select class="pin-input" v-model="selectedTripFilterId" @change="rerenderPins">
+        <option value="">Alle</option>
+        <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
+          {{ t.name }}
+        </option>
+      </select>
+    </div>
+
       <MapCanvas ref="mapRef" @map-click="onMapClick" />
 
       <!-- Klick-Koordinaten Overlay -->
@@ -37,6 +47,16 @@
         <div class="pin-form-row">
           <div class="pin-form-label">Datum (optional)</div>
           <input class="pin-input" type="date" v-model="formDate" />
+        </div>
+
+        <div class="pin-form-row">
+          <div class="pin-form-label">Trip/Album</div>
+          <select class="pin-input" v-model="formTripId">
+            <option value="">Kein Trip</option>
+            <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
+              {{ t.name }}
+            </option>
+          </select>
         </div>
 
         <!-- Echter Upload -->
@@ -92,6 +112,11 @@ import AppHeader from '../components/AppHeader.vue'
 import MapCanvas from '../components/MapCanvas.vue'
 import { usePinsStore } from '../stores/pinsStore.js'
 import { saveMediaFile } from '../services/mediaDb'
+import { useTripsStore } from '../stores/tripsStore'
+import { computed } from 'vue'
+
+var tripsStore = useTripsStore()
+var formTripId = ref('')
 
 var route = useRoute()
 var pinsStore = usePinsStore()
@@ -116,18 +141,30 @@ var formError = ref('')
 // Upload state
 var selectedFiles = ref([])
 var isSaving = ref(false)
+var selectedTripFilterId = ref('')
 
 onMounted(function () {
   // 1) Pins laden
   pinsStore.loadPins()
 
+  tripsStore.loadTrips()
+
   // 2) Marker rendern
   if (mapRef.value && mapRef.value.renderAllPins) {
-    mapRef.value.renderAllPins(pinsStore.pins)
+    mapRef.value.renderAllPins(filteredPins.value)
   }
 
   // 3) Falls /map?pinId=... gesetzt ist -> Pin fokussieren
   focusPinFromRoute()
+})
+
+var filteredPins = computed(function () {
+  var all = pinsStore.pins
+  var t = String(selectedTripFilterId.value ?? '').trim()
+  if (!t) return all
+  return all.filter(function (p) {
+    return String(p.tripId ?? '') === t
+  })
 })
 
 function focusPinFromRoute() {
@@ -156,6 +193,7 @@ function onMapClick(payload) {
   formDescription.value = ''
   formDate.value = ''
   selectedFiles.value = []
+  formTripId.value = ''
 }
 
 function onFilesSelected(event) {
@@ -248,7 +286,7 @@ async function savePin() {
 
     // Marker neu rendern
     if (mapRef.value && mapRef.value.renderAllPins) {
-      mapRef.value.renderAllPins(pinsStore.pins)
+      mapRef.value.renderAllPins(filteredPins.value)
     }
 
     // NEU: Karte auf den neuen Pin fokussieren
@@ -274,7 +312,6 @@ async function savePin() {
   }
 }
 
-pinsStore.addPin
 function cancelPin() {
   if (mapRef.value && mapRef.value.clearPreviewMarker) {
     mapRef.value.clearPreviewMarker()
@@ -286,6 +323,7 @@ function cancelPin() {
   formDate.value = ''
   formError.value = ''
   selectedFiles.value = []
+  formTripId.value = ''
 }
 
 function createPin(lat, lng, description, dateValue, mediaArray) {
@@ -300,12 +338,17 @@ function createPin(lat, lng, description, dateValue, mediaArray) {
   var media = Array.isArray(mediaArray) ? mediaArray : []
 
   return {
-    id: id,
+    id,
     lat: latitude,
     lng: longitude,
     description: text,
     date: d,
-    media: media
+    tripId: formTripId.value ? String(formTripId.value) : null,
+    tags: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    visibility: 'private',
+    media
   }
 }
 
@@ -396,6 +439,12 @@ async function fetchSuggestions(text) {
     })
   } catch (e) {
     suggestions.value = []
+  }
+}
+
+function rerenderPins() {
+  if (mapRef.value && mapRef.value.renderAllPins) {
+    mapRef.value.renderAllPins(filteredPins.value)
   }
 }
 
@@ -512,4 +561,25 @@ async function fetchSuggestions(text) {
 .btn.small { height: 32px; padding: 0 10px; }
 
 .pin-form-hint { margin-top: 10px; font-size: 12px; color: #ffd1d1; }
+
+.map-filter {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 5000;
+  width: 220px;
+  background: rgba(14, 20, 42, 0.92);
+  border: 1px solid rgba(43, 55, 99, 0.9);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #e8eefc;
+  box-shadow: 0 12px 24px rgba(0,0,0,.35);
+}
+
+.map-filter-label {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
 </style>
