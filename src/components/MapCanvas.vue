@@ -1,20 +1,25 @@
+<!-- src/components/MapCanvas.vue -->
 <template>
   <div ref="el" class="map"></div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import L from 'leaflet'
 import { getMediaBlob } from '../services/mediaDb'
+import { useThemeStore } from '../stores/themeStore'
 
-const emit = defineEmits(['map-click'])
+const emit = defineEmits(['map-click', 'pin-click'])
 
 const el = ref(null)
 let map = null
+let tileLayer = null
 
 let previewMarker = null
 let pinsLayer = null
 let markersById = null
+
+var theme = useThemeStore()
 
 // ObjectURLs merken, damit wir sie später revoken können
 let markerObjectUrls = []
@@ -25,6 +30,7 @@ function ensureMapDestroyed() {
     map.remove()
     map = null
   }
+  tileLayer = null
 }
 
 function cleanupMarkerObjectUrls() {
@@ -37,6 +43,50 @@ function cleanupMarkerObjectUrls() {
     }
   }
   markerObjectUrls = []
+}
+
+/**
+ * Map soll bei "contrast" NICHT zwangsläufig dark sein.
+ * Wir nutzen bei contrast die normale Basis (normalTheme),
+ * sonst direkt theme.theme.
+ */
+var mapMode = computed(function () {
+  var t = String(theme.theme || 'dark') // 'dark' | 'light' | 'contrast'
+  if (t === 'contrast') {
+    return String(theme.normalTheme || 'dark') // 'dark' | 'light'
+  }
+  return t
+})
+
+function getTileUrlForMode(mode) {
+  var m = String(mode || 'dark')
+  if (m === 'light') {
+    return 'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png'
+  }
+  return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
+}
+
+function setBaseLayer(mode) {
+  if (!map) return
+
+  var url = getTileUrlForMode(mode)
+
+  if (tileLayer) {
+    try {
+      map.removeLayer(tileLayer)
+    } catch (e) {
+      // ignore
+    }
+    tileLayer = null
+  }
+
+  tileLayer = L.tileLayer(url, {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19,
+    noWrap: true
+  })
+
+  tileLayer.addTo(map)
 }
 
 function initMap() {
@@ -62,14 +112,8 @@ function initMap() {
     maxZoom: 19
   }).setView([52.52, 13.405], 5)
 
-  L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png',
-    {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      maxZoom: 19,
-      noWrap: true
-    }
-  ).addTo(map)
+  // Tile layer abhängig vom Theme (richtig!)
+  setBaseLayer(mapMode.value)
 
   // Zoom Buttons unten rechts
   L.control.zoom({ position: 'bottomright' }).addTo(map)
@@ -140,7 +184,6 @@ function escapeHtml(str) {
 
 function getAssetPinSize(zoom) {
   var z = Number(zoom)
-
   if (z <= 4) return { w: 90, h: 110 }
   if (z <= 7) return { w: 110, h: 130 }
   return { w: 140, h: 160 }
@@ -211,19 +254,28 @@ function addPinMarker(pin) {
   if (!pinsLayer) return
   if (!markersById) markersById = {}
 
-  // WICHTIG: kein Standardmarker mehr -> direkt Custom (Loading)
   var marker = L.marker([pin.lat, pin.lng], { icon: makeLoadingIcon() })
 
-  var text = pin.description
-  if (pin.date) {
-    text = text + '<br />' + pin.date
+  var text = ''
+  if (pin.title) {
+    text = '<b>' + escapeHtml(pin.title) + '</b><br />'
   }
+  text = text + escapeHtml(pin.description || '')
+  if (pin.date) {
+    text = text + '<br />' + escapeHtml(pin.date)
+  }
+
   marker.bindPopup(text)
+
+  marker.on('click', function () {
+    if (pin && pin.id) {
+      emit('pin-click', pin.id)
+    }
+  })
 
   pinsLayer.addLayer(marker)
   markersById[pin.id] = marker
 
-  // Asset laden und Icon ersetzen (immer noch EIN Icon)
   setMarkerAssetIcon(marker, pin)
 }
 
@@ -232,7 +284,6 @@ async function setMarkerAssetIcon(marker, pin) {
     if (!pin || !pin.media || !Array.isArray(pin.media)) return
     if (pin.media.length === 0) return
 
-    // Priorität: Erstes Bild, sonst erstes Video
     var media = null
     var i
 
@@ -262,7 +313,6 @@ async function setMarkerAssetIcon(marker, pin) {
     if (map && map.getZoom) currentZoom = map.getZoom()
     var size = getAssetPinSize(currentZoom)
 
-    // Bild: Blob laden -> ObjectURL -> ImageIcon
     if (media.type === 'image') {
       var blob = await getMediaBlob(String(media.id))
       if (!blob) return
@@ -280,7 +330,6 @@ async function setMarkerAssetIcon(marker, pin) {
       return
     }
 
-    // Video: MVP-Icon ohne Thumbnail (konsistent und sauber)
     if (media.type === 'video') {
       marker.__assetData = {
         type: 'video',
@@ -291,7 +340,7 @@ async function setMarkerAssetIcon(marker, pin) {
       return
     }
   } catch (e) {
-    // bleibt Loading-Icon (immer noch EIN Icon)
+    // bleibt Loading-Icon
   }
 }
 
@@ -352,7 +401,8 @@ defineExpose({
   clearPreviewMarker: clearPreviewMarker,
   addPinMarker: addPinMarker,
   renderAllPins: renderAllPins,
-  focusPin: focusPin
+  focusPin: focusPin,
+  setBaseLayer: setBaseLayer
 })
 
 onMounted(function () {
@@ -363,6 +413,20 @@ onBeforeUnmount(function () {
   cleanupMarkerObjectUrls()
   ensureMapDestroyed()
 })
+
+/**
+ * WICHTIG:
+ * Theme-Änderungen direkt im Canvas beobachten.
+ * Dann musst du das nicht in MapView "durchreichen".
+ */
+watch(
+  function () {
+    return mapMode.value
+  },
+  function (mode) {
+    setBaseLayer(mode)
+  }
+)
 </script>
 
 <style scoped>
@@ -378,20 +442,20 @@ onBeforeUnmount(function () {
   border: 0;
 }
 
-/* Pin-Container: Größe kommt aus Inline-Style */
+/* Pin-Container */
 :global(.asset-pin) {
   user-select: none;
   pointer-events: auto;
   transform: translateY(-6px);
 }
 
-/* Frame: Größe kommt aus Inline-Style */
+/* Frame */
 :global(.asset-frame) {
   border-radius: 10px;
   overflow: hidden;
-  background: #ffffff;
-  border: 3px solid #ffffff;
-  box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+  background: var(--panel);
+  border: 3px solid var(--panel);
+  box-shadow: 0 12px 24px var(--shadow);
   position: relative;
 }
 
@@ -404,23 +468,23 @@ onBeforeUnmount(function () {
 
 :global(.asset-caption) {
   margin-top: 8px;
-  background: rgba(255,255,255,0.95);
-  color: #111827;
+  background: var(--panel);
+  color: var(--fg);
   border-radius: 10px;
   padding: 6px 10px;
   font-size: 13px;
   font-weight: 600;
   text-align: center;
-  box-shadow: 0 10px 18px rgba(0,0,0,0.18);
+  box-shadow: 0 10px 18px var(--shadow);
 }
 
 :global(.asset-needle) {
   width: 12px;
   height: 12px;
-  background: #e11d48;
+  background: var(--accent);
   border-radius: 999px;
   margin: 8px auto 0 auto;
-  box-shadow: 0 6px 10px rgba(0,0,0,0.25);
+  box-shadow: 0 6px 10px var(--shadow);
   position: relative;
 }
 
@@ -432,26 +496,26 @@ onBeforeUnmount(function () {
   transform: translateX(-50%);
   width: 2px;
   height: 18px;
-  background: rgba(0,0,0,0.25);
+  background: var(--border);
   border-radius: 2px;
 }
 
 /* Loading State */
 :global(.asset-pin.loading .asset-frame) {
-  background: linear-gradient(90deg, #e5e7eb, #f3f4f6, #e5e7eb);
+  background: linear-gradient(90deg, var(--panel-2), var(--panel), var(--panel-2));
 }
 
 /* Video Styling */
 :global(.asset-pin.video .asset-frame) {
-  background: #111827;
-  border-color: #ffffff;
+  background: var(--bg);
+  border-color: var(--panel);
 }
 
 :global(.video-badge) {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: rgba(0,0,0,0.65);
+  background: rgba(0, 0, 0, 0.65);
   color: #ffffff;
   font-size: 11px;
   font-weight: 700;
@@ -467,7 +531,7 @@ onBeforeUnmount(function () {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
   display: flex;
   align-items: center;

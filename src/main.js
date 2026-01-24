@@ -1,18 +1,20 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import 'leaflet/dist/leaflet.css';
-import './styles/global.css';
-import router from './router';
-import { createPinia } from 'pinia';
+import 'leaflet/dist/leaflet.css'
+import './styles/global.css'
+import router from './router'
+import { createPinia } from 'pinia'
+import { useThemeStore } from './stores/themeStore'
 
-const pinia = createPinia();
+const pinia = createPinia()
+const app = createApp(App)
 
-const app = createApp(App);
+app.use(pinia)
+
+app.use(router)
+var theme = useThemeStore(pinia)
+theme.loadTheme()
+theme.applyThemeToDom()
 
 
-app.use(pinia);
-app.use(router);
-
-app.mount('#app');
-
-
+app.mount('#app')

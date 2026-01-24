@@ -1,8 +1,116 @@
+// src/stores/pinsStore.js
 import { defineStore } from 'pinia'
-import { deleteMedia } from '../services/mediaDb'
-
+import { deleteMedia, saveMediaFile } from '../services/mediaDb'
 
 var STORAGE_KEY = 'memorymap_pins_v1'
+
+function now() {
+  return Date.now()
+}
+
+function toTrimmedString(v) {
+  return String(v ?? '').trim()
+}
+
+function normalizeVisibility(v) {
+  var s = toTrimmedString(v)
+  if (!s) return 'private'
+  // MVP: nur private/public akzeptieren, sonst fallback
+  if (s !== 'private' && s !== 'public') return 'private'
+  return s
+}
+
+function normalizeMedia(media) {
+  if (!Array.isArray(media)) return []
+
+  // sanitize refs
+  var out = []
+  var i
+  for (i = 0; i < media.length; i = i + 1) {
+    var m = media[i]
+    if (!m || !m.id) continue
+
+    var id = toTrimmedString(m.id)
+    if (!id) continue
+
+    var mime = toTrimmedString(m.mime)
+    var name = toTrimmedString(m.name)
+
+    var type = toTrimmedString(m.type) || 'file'
+    if (type !== 'image' && type !== 'video' && type !== 'file') type = 'file'
+
+    out.push({
+      id: id,
+      type: type,
+      mime: mime,
+      name: name
+    })
+  }
+
+  return out
+}
+
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) return []
+  // strings trimmen, leere raus, unique (case-insensitive optional)
+  var out = []
+  var seen = {}
+  var i
+  for (i = 0; i < tags.length; i = i + 1) {
+    var t = toTrimmedString(tags[i])
+    if (!t) continue
+    var key = t.toLowerCase()
+    if (seen[key]) continue
+    seen[key] = true
+    out.push(t)
+  }
+  return out
+}
+
+function normalizeTripId(tripId) {
+  if (tripId === null || tripId === undefined) return null
+  var s = toTrimmedString(tripId)
+  return s ? s : null
+}
+
+function normalizeDateString(dateValue) {
+  var d = toTrimmedString(dateValue)
+  return d ? d : null
+}
+
+// Normalisiert ein Pin-Objekt robust
+function normalizePin(pin) {
+  var p = pin && typeof pin === 'object' ? pin : {}
+
+  var created = Number(p.createdAt)
+  if (!created || isNaN(created)) created = now()
+
+  var updated = Number(p.updatedAt)
+  if (!updated || isNaN(updated)) updated = created
+
+  return {
+    id: toTrimmedString(p.id) || crypto.randomUUID(),
+
+    lat: Number(p.lat),
+    lng: Number(p.lng),
+
+    title: toTrimmedString(p.title), // darf leer sein, aber existiert immer
+    description: toTrimmedString(p.description),
+
+    date: normalizeDateString(p.date),
+
+    tripId: normalizeTripId(p.tripId),
+
+    visibility: normalizeVisibility(p.visibility),
+
+    tags: normalizeTags(p.tags),
+
+    createdAt: created,
+    updatedAt: updated,
+
+    media: normalizeMedia(p.media)
+  }
+}
 
 export const usePinsStore = defineStore('pins', {
   state: function () {
@@ -12,7 +120,6 @@ export const usePinsStore = defineStore('pins', {
   },
 
   actions: {
-    // Beim App-Start oder beim Laden einer View aufrufen
     loadPins: function () {
       try {
         var raw = localStorage.getItem(STORAGE_KEY)
@@ -22,59 +129,48 @@ export const usePinsStore = defineStore('pins', {
         }
 
         var data = JSON.parse(raw)
-
-        if (Array.isArray(data)) {
-        // Normalisieren: alte Pins abwärtskompatibel halten
-var i
-for (i = 0; i < data.length; i = i + 1) {
-  if (!Array.isArray(data[i].media)) {
-    data[i].media = []
-  }
-
-  // neu: tripId
-  if (data[i].tripId === undefined) {
-    data[i].tripId = null
-  }
-
-  // optional sinnvoll (für später Timeline/Sorting)
-  if (data[i].createdAt === undefined) {
-    data[i].createdAt = Date.now()
-  }
-  if (data[i].updatedAt === undefined) {
-    data[i].updatedAt = data[i].createdAt
-  }
-}
-
-        this.pins = data
-        } else {
-        this.pins = []
+        if (!Array.isArray(data)) {
+          this.pins = []
+          return
         }
 
+        // Normalisierung: macht Demo-sicher und abwärtskompatibel
+        var out = []
+        var i
+        for (i = 0; i < data.length; i = i + 1) {
+          out.push(normalizePin(data[i]))
+        }
+
+        this.pins = out
+        this.savePins() // optional: einmal sauber zurückschreiben
       } catch (e) {
         this.pins = []
       }
     },
 
-    // Intern: nach jeder Änderung speichern
     savePins: function () {
       try {
-        var raw = JSON.stringify(this.pins)
-        localStorage.setItem(STORAGE_KEY, raw)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.pins))
       } catch (e) {
-        // falls Speicher voll/gesperrt: ignorieren
+        // ignore
       }
     },
 
     addPin: function (pin) {
-      this.pins.push(pin)
+      // immer normalisiert ablegen
+      var p = normalizePin(pin)
+      this.pins.push(p)
       this.savePins()
+      return p
     },
 
-    // Optional (für später)
     removePinById: function (id) {
+      var target = toTrimmedString(id)
+      if (!target) return
+
       var i
       for (i = 0; i < this.pins.length; i = i + 1) {
-        if (this.pins[i].id === id) {
+        if (this.pins[i].id === target) {
           this.pins.splice(i, 1)
           this.savePins()
           return
@@ -82,76 +178,183 @@ for (i = 0; i < data.length; i = i + 1) {
       }
     },
 
-    // Optional (für später)
     clearPins: function () {
       this.pins = []
       this.savePins()
     },
 
     getPinById: function (id) {
+      var target = toTrimmedString(id)
+      if (!target) return null
+
       var i
       for (i = 0; i < this.pins.length; i = i + 1) {
-        if (this.pins[i].id === id) {
-          return this.pins[i]
-        }
+        if (this.pins[i].id === target) return this.pins[i]
       }
       return null
     },
 
-        updatePin: function (id, updates) {
-    var i
-    for (i = 0; i < this.pins.length; i = i + 1) {
-        if (this.pins[i].id === id) {
-        // Nur bekannte Felder aktualisieren
-        if (updates && updates.description !== undefined) {
-            this.pins[i].description = String(updates.description ?? '').trim()
-        }
-        if (updates && updates.date !== undefined) {
-            var d = String(updates.date ?? '').trim()
-            this.pins[i].date = d ? d : null
+    updatePin: function (id, updates) {
+      var target = toTrimmedString(id)
+      if (!target) return false
+
+      var patch = updates && typeof updates === 'object' ? updates : {}
+
+      var i
+      for (i = 0; i < this.pins.length; i = i + 1) {
+        var p = this.pins[i]
+        if (p.id !== target) continue
+
+        // Titel
+        if (patch.title !== undefined) {
+          p.title = toTrimmedString(patch.title)
         }
 
-        this.savePins()
-        return
+        // Beschreibung
+        if (patch.description !== undefined) {
+          p.description = toTrimmedString(patch.description)
         }
-    }
+
+        // Datum
+        if (patch.date !== undefined) {
+          p.date = normalizeDateString(patch.date)
+        }
+
+        // Album/Trip
+        if (patch.tripId !== undefined) {
+          p.tripId = normalizeTripId(patch.tripId)
+        }
+
+        // Visibility
+        if (patch.visibility !== undefined) {
+          p.visibility = normalizeVisibility(patch.visibility)
+        }
+
+        // Tags
+        if (patch.tags !== undefined) {
+          p.tags = normalizeTags(patch.tags)
+        }
+
+        // media patchen wir bewusst nicht hier (dafür add/remove Media)
+        p.updatedAt = now()
+
+        this.savePins()
+        return true
+      }
+
+      return false
     },
 
     deletePinAndMedia: async function (id) {
-    // 1) Pin finden
-    var pin = this.getPinById(id)
-    if (!pin) return
+      var pin = this.getPinById(id)
+      if (!pin) return
 
-    // 2) Medien löschen (falls vorhanden)
-    if (pin.media && Array.isArray(pin.media)) {
-      var i
-      for (i = 0; i < pin.media.length; i = i + 1) {
-        var m = pin.media[i]
-        if (m && m.id) {
-          try {
-            await deleteMedia(String(m.id))
-          } catch (e) {
-            // Wenn das Löschen fehlschlägt, löschen wir trotzdem den Pin.
-            // Optional könntest du hier später eine Warnung anzeigen.
+      // Medien löschen
+      if (pin.media && Array.isArray(pin.media)) {
+        var i
+        for (i = 0; i < pin.media.length; i = i + 1) {
+          var m = pin.media[i]
+          if (m && m.id) {
+            try {
+              await deleteMedia(String(m.id))
+            } catch (e) {
+              // ignore (MVP)
+            }
           }
         }
       }
-    }
 
-    // 3) Pin aus Store entfernen
-    var idx = -1
-    var j
-    for (j = 0; j < this.pins.length; j = j + 1) {
-      if (this.pins[j].id === id) {
-        idx = j
-        break
+      // Pin entfernen
+      this.removePinById(pin.id)
+    },
+
+    addMediaToPin: async function (pinId, files) {
+      var pin = this.getPinById(pinId)
+      if (!pin) return []
+
+      if (!pin.media || !Array.isArray(pin.media)) {
+        pin.media = []
       }
-    }
 
-    if (idx >= 0) {
-      this.pins.splice(idx, 1)
+      // Files normalisieren
+      var list = []
+      if (files && files.length !== undefined) {
+        var i
+        for (i = 0; i < files.length; i = i + 1) {
+          list.push(files[i])
+        }
+      }
+      if (list.length === 0) return []
+
+      var added = []
+      var j
+      for (j = 0; j < list.length; j = j + 1) {
+        var file = list[j]
+        if (!file) continue
+
+        if (file.size > 50 * 1024 * 1024) {
+          throw new Error('Eine Datei ist größer als 50MB. Bitte kleinere Datei wählen.')
+        }
+
+        var meta = await saveMediaFile(file)
+
+        var mime = String(meta.mime || '')
+        var type = 'file'
+        if (mime.indexOf('image/') === 0) type = 'image'
+        if (mime.indexOf('video/') === 0) type = 'video'
+
+        var ref = {
+          id: String(meta.id),
+          type: type,
+          mime: meta.mime,
+          name: meta.name
+        }
+
+        pin.media.push(ref)
+        added.push(ref)
+      }
+
+      pin.media = normalizeMedia(pin.media) // sanitize
+      pin.updatedAt = now()
       this.savePins()
+
+      return added
+    },
+
+    removeMediaFromPin: async function (pinId, mediaId) {
+      var pin = this.getPinById(pinId)
+      if (!pin) return false
+      if (!pin.media || !Array.isArray(pin.media)) return false
+
+      var id = toTrimmedString(mediaId)
+      if (!id) return false
+
+      // 1) Blob löschen
+      try {
+        await deleteMedia(id)
+      } catch (e) {
+        // ignore (MVP)
+      }
+
+      // 2) Ref entfernen
+      var idx = -1
+      var i
+      for (i = 0; i < pin.media.length; i = i + 1) {
+        if (pin.media[i] && String(pin.media[i].id) === id) {
+          idx = i
+          break
+        }
+      }
+
+      if (idx >= 0) {
+        pin.media.splice(idx, 1)
+        pin.media = normalizeMedia(pin.media)
+        pin.updatedAt = now()
+        this.savePins()
+        return true
+      }
+
+      return false
     }
-  }
   }
 })

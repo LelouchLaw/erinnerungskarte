@@ -3,7 +3,9 @@ import HomeView from '../views/HomeView.vue';
 import MapView from '../views/MapView.vue';
 import PinsView from '../views/PinsView.vue';
 import PinDetailsView from '../views/PinDetailsView.vue';
-import TripsView from '../views/TripsView.vue'
+import TripsView from '../views/TripsView.vue';
+import TripDetailsView from '../views/TripDetailsView.vue'
+
 
 const router = createRouter({
     history: createWebHistory(),
@@ -27,7 +29,11 @@ const router = createRouter({
         path: '/pin/:id',
         name: 'pin-details',
         component: PinDetailsView,
-    }
+    }, {
+  path: '/trips/:id',
+  name: 'trip-details',
+  component: TripDetailsView
+}
     ]
 });
 export default router;

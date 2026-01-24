@@ -1,9 +1,10 @@
+<!-- src/views/HomeView.vue -->
 <template>
   <div class="page">
     <div class="hero">
       <div class="title">MemoryMap</div>
       <div class="subtitle">
-        Speichere Erinnerungen als Pins auf einer Weltkarte – mit Beschreibung, Datum und Medien.
+        Speichere Erinnerungen als Pins auf einer Weltkarte – mit Beschreibung, Datum, Album und Medien.
       </div>
 
       <div class="hero-actions">
@@ -43,12 +44,16 @@
         <ul class="list" v-if="recentPins.length > 0">
           <li class="item" v-for="p in recentPins" :key="p.id">
             <div class="item-main">
-              <div class="item-desc">{{ p.description }}</div>
+              <div class="item-desc">
+                <span class="pin-title" v-if="p.title">{{ p.title }}</span>
+                <span class="pin-title" v-else>Ohne Titel</span>
+                <span class="sep">·</span>
+                <span class="pin-desc">{{ p.description }}</span>
+              </div>
+
               <div class="item-meta">
                 <span v-if="p.date">{{ p.date }}</span>
-                <span v-if="!p.date">Kein Datum</span>
-                <span> · </span>
-                <span>{{ formatNumber(p.lat) }}, {{ formatNumber(p.lng) }}</span>
+                <span v-else>Kein Datum</span>
               </div>
             </div>
 
@@ -76,7 +81,6 @@ var router = useRouter()
 var pinsStore = usePinsStore()
 
 onMounted(function () {
-  // nach Reload sicher laden
   pinsStore.loadPins()
 })
 
@@ -97,10 +101,8 @@ var mediaCount = computed(function () {
 })
 
 var recentPins = computed(function () {
-  // letzte 5 Pins (Array-Reihenfolge = Erstell-Reihenfolge in deinem Store)
   var arr = pinsStore.pins.slice()
   arr = arr.slice(Math.max(0, arr.length - 5))
-  // neueste oben
   arr.reverse()
   return arr
 })
@@ -114,15 +116,11 @@ function goToPins() {
 }
 
 function openDetail(id) {
-  router.push({ path: '/pins/' + id })
+  router.push({ path: '/pin/' + id })
 }
 
 function openOnMap(id) {
   router.push({ path: '/map', query: { pinId: id } })
-}
-
-function formatNumber(n) {
-  return Number(n).toFixed(5)
 }
 </script>
 
@@ -134,11 +132,12 @@ function formatNumber(n) {
 }
 
 .hero {
-  border: 1px solid #2b3763;
-  background: #0e142a;
+  border: 1px solid var(--border);
+  background: var(--panel);
   border-radius: 16px;
   padding: 16px;
-  color: #e8eefc;
+  color: var(--fg);
+  box-shadow: 0 12px 24px var(--shadow);
 }
 
 .title {
@@ -148,7 +147,7 @@ function formatNumber(n) {
 }
 
 .subtitle {
-  opacity: 0.85;
+  color: var(--muted);
   line-height: 1.35;
   max-width: 720px;
 }
@@ -168,17 +167,16 @@ function formatNumber(n) {
 }
 
 @media (max-width: 900px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+  .grid { grid-template-columns: 1fr; }
 }
 
 .card {
-  border: 1px solid #2b3763;
-  background: #0e142a;
+  border: 1px solid var(--border);
+  background: var(--panel);
   border-radius: 16px;
   padding: 14px;
-  color: #e8eefc;
+  color: var(--fg);
+  box-shadow: 0 12px 24px var(--shadow);
 }
 
 .card-title {
@@ -194,15 +192,15 @@ function formatNumber(n) {
 }
 
 .stat {
-  border: 1px solid rgba(43, 55, 99, 0.65);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: rgba(18, 26, 51, 0.55);
+  background: var(--panel-2);
   padding: 12px;
 }
 
 .stat-label {
   font-size: 12px;
-  opacity: 0.8;
+  color: var(--muted);
   margin-bottom: 6px;
 }
 
@@ -214,7 +212,7 @@ function formatNumber(n) {
 .hint {
   margin-top: 10px;
   font-size: 13px;
-  opacity: 0.8;
+  color: var(--muted);
 }
 
 .list {
@@ -226,9 +224,9 @@ function formatNumber(n) {
 }
 
 .item {
-  border: 1px solid rgba(43, 55, 99, 0.65);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: rgba(18, 26, 51, 0.55);
+  background: var(--panel-2);
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;
@@ -238,11 +236,18 @@ function formatNumber(n) {
 .item-desc {
   font-size: 14px;
   margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+
+.pin-title { font-weight: 700; }
+.pin-desc { color: var(--muted); }
+.sep { color: var(--muted); }
 
 .item-meta {
   font-size: 12px;
-  opacity: 0.85;
+  color: var(--muted);
 }
 
 .item-actions {
@@ -259,14 +264,16 @@ function formatNumber(n) {
   height: 36px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid #2b3763;
-  background: #1a2447;
-  color: #e8eefc;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--fg);
   cursor: pointer;
 }
+.btn:hover { background: var(--btn-hover); }
 
 .btn.primary {
-  background: #22306a;
+  border-color: var(--border);
+  background: var(--btn-hover);
 }
 
 .btn.secondary {

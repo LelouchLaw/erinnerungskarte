@@ -1,13 +1,17 @@
+<!-- src/views/TripsView.vue -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useTripsStore } from '../stores/tripsStore'
 import { usePinsStore } from '../stores/pinsStore'
+import { useRouter } from 'vue-router'
 
 var tripsStore = useTripsStore()
 var pinsStore = usePinsStore()
+var router = useRouter()
 
 var newTripName = ref('')
 var errorMsg = ref('')
+
 var editingTripId = ref('')
 var editingName = ref('')
 
@@ -17,11 +21,10 @@ onMounted(function () {
 })
 
 var tripsWithCounts = computed(function () {
-  // Zählt, wie viele Pins zu jedem Trip gehören
   return tripsStore.trips
     .slice()
     .sort(function (a, b) {
-      return b.createdAt - a.createdAt
+      return (b.createdAt || 0) - (a.createdAt || 0)
     })
     .map(function (t) {
       var count = pinsStore.pins.filter(function (p) {
@@ -36,16 +39,15 @@ function createTrip() {
   var name = String(newTripName.value ?? '').trim()
 
   if (!name) {
-    errorMsg.value = 'Bitte einen Trip-Namen eingeben.'
+    errorMsg.value = 'Bitte einen Album-Namen eingeben.'
     return
   }
 
-  // Optional: Doppelte Namen vermeiden (case-insensitive)
   var exists = tripsStore.trips.some(function (t) {
     return String(t.name ?? '').trim().toLowerCase() === name.toLowerCase()
   })
   if (exists) {
-    errorMsg.value = 'Ein Trip mit diesem Namen existiert bereits.'
+    errorMsg.value = 'Ein Album mit diesem Namen existiert bereits.'
     return
   }
 
@@ -53,41 +55,14 @@ function createTrip() {
   newTripName.value = ''
 }
 
-function deleteTrip(tripId) {
-  errorMsg.value = ''
-
-  // Wenn Pins existieren, musst du entscheiden: blockieren oder "lösen".
-  // Wir machen hier eine sichere, einfache Variante:
-  // Trip löschen UND alle Pins, die darauf zeigen, auf "Kein Trip" setzen.
-  var hasPins = pinsStore.pins.some(function (p) {
-    return String(p.tripId ?? '') === String(tripId)
-  })
-
-  var ok = true
-  if (hasPins) {
-    ok = window.confirm(
-      'Dieser Trip hat Pins. Wenn du löschst, werden diese Pins auf "Kein Trip" gesetzt. Fortfahren?'
-    )
-  } else {
-    ok = window.confirm('Trip wirklich löschen?')
-  }
-
-  if (!ok) return
-
-  // Pins "entkoppeln"
-  var i
-  for (i = 0; i < pinsStore.pins.length; i = i + 1) {
-    if (String(pinsStore.pins[i].tripId ?? '') === String(tripId)) {
-      // updatePin erwartet (id, patch)
-      pinsStore.updatePin(pinsStore.pins[i].id, { tripId: null })
-    }
-  }
-
-  tripsStore.removeTripById(tripId)
+function openAlbum(id) {
+  router.push({ path: '/trips/' + String(id) })
 }
+
 function startEditTrip(trip) {
+  if (!trip) return
   editingTripId.value = trip.id
-  editingName.value = trip.name
+  editingName.value = trip.name || ''
   errorMsg.value = ''
 }
 
@@ -106,13 +81,12 @@ function saveEditTrip(tripId) {
     return
   }
 
-  // optional: Duplikate vermeiden
   var exists = tripsStore.trips.some(function (t) {
-    if (t.id === tripId) return false
+    if (String(t.id) === String(tripId)) return false
     return String(t.name ?? '').trim().toLowerCase() === name.toLowerCase()
   })
   if (exists) {
-    errorMsg.value = 'Ein Trip mit diesem Namen existiert bereits.'
+    errorMsg.value = 'Ein Album mit diesem Namen existiert bereits.'
     return
   }
 
@@ -120,18 +94,46 @@ function saveEditTrip(tripId) {
   cancelEditTrip()
 }
 
+function deleteTrip(tripId) {
+  errorMsg.value = ''
+
+  var hasPins = pinsStore.pins.some(function (p) {
+    return String(p.tripId ?? '') === String(tripId)
+  })
+
+  var ok = true
+  if (hasPins) {
+    ok = window.confirm(
+      'Dieses Album hat Pins. Wenn du löschst, werden diese Pins auf "Kein Album" gesetzt. Fortfahren?'
+    )
+  } else {
+    ok = window.confirm('Album wirklich löschen?')
+  }
+
+  if (!ok) return
+
+  // Pins entkoppeln
+  var i
+  for (i = 0; i < pinsStore.pins.length; i = i + 1) {
+    if (String(pinsStore.pins[i].tripId ?? '') === String(tripId)) {
+      pinsStore.updatePin(pinsStore.pins[i].id, { tripId: null })
+    }
+  }
+
+  tripsStore.removeTripById(tripId)
+}
 </script>
 
 <template>
   <div class="page">
-    <h1>Trips / Alben</h1>
+    <h1>Alben</h1>
 
     <div class="card">
       <div class="row">
         <input
           class="input"
           v-model="newTripName"
-          placeholder="Neuen Trip erstellen (z. B. Italien 2025)"
+          placeholder="Neues Album erstellen (z. B. Italien 2025)"
           @keyup.enter="createTrip"
         />
         <button class="btn" @click="createTrip">Erstellen</button>
@@ -142,45 +144,36 @@ function saveEditTrip(tripId) {
 
     <div class="card">
       <div v-if="tripsWithCounts.length === 0" class="empty">
-        Noch keine Trips erstellt.
+        Noch keine Alben erstellt.
       </div>
 
       <ul v-else class="list">
         <li v-for="x in tripsWithCounts" :key="x.trip.id" class="list-item">
           <div class="left">
-  <div v-if="editingTripId !== x.trip.id">
-    <div class="title">{{ x.trip.name }}</div>
-    <div class="meta">
-      Erstellt: {{ new Date(x.trip.createdAt).toLocaleDateString() }} ·
-      Pins: {{ x.count }}
-    </div>
-  </div>
+            <div v-if="editingTripId !== x.trip.id">
+              <div class="title">{{ x.trip.name }}</div>
+              <div class="meta">
+                Erstellt: {{ new Date(x.trip.createdAt).toLocaleDateString() }} ·
+                Pins: {{ x.count }}
+              </div>
+            </div>
 
-  <div v-else class="edit-row">
-    <input
-      class="input"
-      v-model="editingName"
-      @keyup.enter="saveEditTrip(x.trip.id)"
-    />
-    <button class="btn" @click="saveEditTrip(x.trip.id)">Speichern</button>
-    <button class="btn" @click="cancelEditTrip">Abbrechen</button>
-  </div>
-</div>
+            <div v-else class="edit-row">
+              <input
+                class="input"
+                v-model="editingName"
+                @keyup.enter="saveEditTrip(x.trip.id)"
+              />
+              <button class="btn" @click="saveEditTrip(x.trip.id)">Speichern</button>
+              <button class="btn secondary" @click="cancelEditTrip">Abbrechen</button>
+            </div>
+          </div>
 
-          <div class="actions">
-  <button
-    v-if="editingTripId !== x.trip.id"
-    class="btn"
-    @click="startEditTrip(x.trip)"
-  >
-    Umbenennen
-  </button>
-
-  <button class="btn danger" @click="deleteTrip(x.trip.id)">
-    Löschen
-  </button>
-</div>
-
+          <div class="actions" v-if="editingTripId !== x.trip.id">
+            <button class="btn" @click="openAlbum(x.trip.id)">Ansehen</button>
+            <button class="btn secondary" @click="startEditTrip(x.trip)">Umbenennen</button>
+            <button class="btn danger" @click="deleteTrip(x.trip.id)">Löschen</button>
+          </div>
         </li>
       </ul>
     </div>
@@ -199,13 +192,13 @@ h1 {
 }
 
 .card {
-  background: rgba(14, 20, 42, 0.92);
-  border: 1px solid rgba(43, 55, 99, 0.9);
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
   margin-bottom: 14px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-  color: #e8eefc;
+  box-shadow: 0 12px 24px var(--shadow);
+  color: var(--fg);
 }
 
 .row {
@@ -218,9 +211,9 @@ h1 {
   flex: 1;
   height: 38px;
   border-radius: 10px;
-  border: 1px solid #2b3763;
-  background: #121a33;
-  color: #e8eefc;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--fg);
   padding: 0 12px;
   outline: none;
 }
@@ -228,30 +221,43 @@ h1 {
 .btn {
   height: 38px;
   border-radius: 10px;
-  border: 1px solid #2b3763;
-  background: #1a2550;
-  color: #e8eefc;
+  border: 1px solid var(--border);
+  background: var(--btn);
+  color: var(--fg);
   padding: 0 12px;
   cursor: pointer;
 }
 
 .btn:hover {
-  filter: brightness(1.08);
+  background: var(--btn-hover);
+}
+
+.btn.secondary {
+  background: transparent;
+}
+
+.btn.secondary:hover {
+  background: var(--panel-2);
 }
 
 .btn.danger {
-  border-color: rgba(255, 90, 90, 0.55);
-  background: rgba(255, 90, 90, 0.12);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.btn.danger:hover {
+  filter: brightness(1.05);
 }
 
 .error {
   margin-top: 10px;
-  color: rgba(255, 140, 140, 0.95);
+  color: var(--danger-fg);
   font-size: 13px;
 }
 
 .empty {
-  opacity: 0.85;
+  color: var(--muted);
   font-size: 13px;
   padding: 6px 2px;
 }
@@ -268,7 +274,7 @@ h1 {
   align-items: center;
   justify-content: space-between;
   padding: 12px 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border);
 }
 
 .list-item:last-child {
@@ -286,7 +292,7 @@ h1 {
 
 .meta {
   font-size: 12px;
-  opacity: 0.85;
+  color: var(--muted);
   margin-top: 2px;
 }
 
@@ -294,12 +300,14 @@ h1 {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .edit-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
-
 </style>
