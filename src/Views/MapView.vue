@@ -2,6 +2,7 @@
 <template>
   <div>
     <div class="map-wrap">
+      <!-- Filter -->
       <div class="map-filter">
         <div class="map-filter-label">Album-Filter</div>
         <select class="pin-input" v-model="selectedTripFilterId" @change="rerenderPins">
@@ -12,11 +13,7 @@
         </select>
       </div>
 
-      <MapCanvas
-        ref="mapRef"
-        @map-click="onMapClick"
-        @pin-click="openPinDetails"
-      />
+      <MapCanvas ref="mapRef" @map-click="onMapClick" @pin-click="openPinDetails" />
 
       <!-- Pin Formular -->
       <div class="pin-form" v-if="isFormOpen">
@@ -24,12 +21,22 @@
 
         <div class="pin-form-row">
           <div class="pin-form-label">Titel (Pflicht)</div>
-          <input class="pin-input" type="text" v-model="formTitle" placeholder="z. B. Rom – Tag 1" />
+          <input
+            class="pin-input"
+            type="text"
+            v-model="formTitle"
+            placeholder="z. B. Rom – Tag 1"
+          />
         </div>
 
         <div class="pin-form-row">
           <div class="pin-form-label">Beschreibung (Pflicht)</div>
-          <input class="pin-input" type="text" v-model="formDescription" placeholder="z. B. Sonnenuntergang am Strand" />
+          <input
+            class="pin-input"
+            type="text"
+            v-model="formDescription"
+            placeholder="z. B. Sonnenuntergang am Strand"
+          />
         </div>
 
         <div class="pin-form-row">
@@ -39,17 +46,53 @@
 
         <div class="pin-form-row">
           <div class="pin-form-label">Album</div>
-          <select class="pin-input" v-model="formTripId">
-            <option value="">Kein Album</option>
-            <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
-              {{ t.name }}
-            </option>
-          </select>
+
+          <!-- Select + Quick Create Button -->
+          <div class="album-row">
+            <select class="pin-input" v-model="formTripId">
+              <option value="">Kein Album</option>
+              <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
+                {{ t.name }}
+              </option>
+            </select>
+
+            <button class="btn secondary" type="button" @click="openInlineAlbumCreate">
+              + Neues Album
+            </button>
+          </div>
+
+          <!-- Inline Create -->
+          <div class="album-create" v-if="isAlbumCreateOpen">
+            <input
+              class="pin-input"
+              type="text"
+              v-model="newAlbumName"
+              placeholder="Album-Name (z. B. Italien 2025)"
+              @keydown.enter.prevent="createAlbumInline"
+            />
+            <div class="album-create-actions">
+              <button class="btn" type="button" @click="createAlbumInline">Erstellen</button>
+              <button class="btn secondary" type="button" @click="closeInlineAlbumCreate">
+                Abbrechen
+              </button>
+            </div>
+            <div class="album-create-hint" v-if="albumCreateError">
+              {{ albumCreateError }}
+            </div>
+          </div>
         </div>
 
+        <!-- Upload -->
         <div class="pin-form-row">
           <div class="pin-form-label">Medien hochladen (Foto/Video)</div>
-          <input class="pin-input" type="file" multiple accept="image/*,video/*" @change="onFilesSelected" />
+
+          <input
+            class="pin-input file"
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            @change="onFilesSelected"
+          />
 
           <div class="media-list" v-if="selectedFiles.length > 0">
             <div class="media-item" v-for="(f, i) in selectedFiles" :key="i">
@@ -57,7 +100,7 @@
                 <span class="badge">{{ fileTypeLabel(f.type) }}</span>
                 <span class="url">{{ f.name }}</span>
               </div>
-              <button class="btn small secondary" @click="removeSelectedFile(i)">
+              <button class="btn small secondary" type="button" @click="removeSelectedFile(i)">
                 Entfernen
               </button>
             </div>
@@ -69,10 +112,10 @@
         </div>
 
         <div class="pin-form-actions">
-          <button class="btn" @click="savePin" :disabled="isSaving">
+          <button class="btn" type="button" @click="savePin" :disabled="isSaving">
             {{ isSaving ? 'Speichern…' : 'Speichern' }}
           </button>
-          <button class="btn secondary" @click="cancelPin" :disabled="isSaving">
+          <button class="btn secondary" type="button" @click="cancelPin" :disabled="isSaving">
             Abbrechen
           </button>
         </div>
@@ -93,10 +136,12 @@ import { usePinsStore } from '../stores/pinsStore.js'
 import { saveMediaFile } from '../services/mediaDb'
 import { useTripsStore } from '../stores/tripsStore'
 import { useUiStore } from '../stores/uiStore'
+import { useThemeStore } from '../stores/themeStore'
 
 var tripsStore = useTripsStore()
 var pinsStore = usePinsStore()
 var ui = useUiStore()
+var theme = useThemeStore()
 
 var route = useRoute()
 var router = useRouter()
@@ -120,6 +165,11 @@ var isSaving = ref(false)
 // Filter state
 var selectedTripFilterId = ref('')
 
+// Inline Album Create
+var isAlbumCreateOpen = ref(false)
+var newAlbumName = ref('')
+var albumCreateError = ref('')
+
 onMounted(function () {
   pinsStore.loadPins()
   tripsStore.loadTrips()
@@ -129,6 +179,9 @@ onMounted(function () {
   if (mapRef.value && mapRef.value.renderAllPins) {
     mapRef.value.renderAllPins(filteredPins.value)
   }
+
+  // Karte initial auf Theme setzen
+  syncMapTilesToTheme()
 
   focusPinFromRoute()
 })
@@ -155,6 +208,30 @@ watch(
       mapRef.value.setView(loc.latitude, loc.longitude, 12)
     }
     ui.setMapSuggestions([])
+  }
+)
+
+// IMPORTANT: themeStore uses theme.theme + normalTheme (not theme.mode)
+function getEffectiveMapMode() {
+  // We only support 'dark' or 'light' tiles for now.
+  // In contrast we use light tiles for better readability.
+  if (theme.theme === 'light') return 'light'
+  if (theme.theme === 'contrast') return 'light'
+  return 'dark'
+}
+
+function syncMapTilesToTheme() {
+  if (mapRef.value && mapRef.value.setBaseLayer) {
+    mapRef.value.setBaseLayer(getEffectiveMapMode())
+  }
+}
+
+watch(
+  function () {
+    return theme.theme
+  },
+  function () {
+    syncMapTilesToTheme()
   }
 )
 
@@ -200,8 +277,12 @@ function onMapClick(payload) {
   formDate.value = ''
   selectedFiles.value = []
 
+  // Wenn albumId in URL ist, vorbefüllen, sonst leer
   var albumId = route.query && route.query.albumId ? String(route.query.albumId) : ''
   formTripId.value = albumId ? albumId : ''
+
+  // Inline Album create schließen
+  closeInlineAlbumCreate()
 }
 
 function onFilesSelected(event) {
@@ -259,6 +340,7 @@ async function savePin() {
     var lat = selectedLatLng.value.lat
     var lng = selectedLatLng.value.lng
 
+    // Upload in IndexedDB -> Media Refs sammeln
     var mediaRefs = []
     var i
     for (i = 0; i < selectedFiles.value.length; i = i + 1) {
@@ -289,6 +371,7 @@ async function savePin() {
     }
 
     var pin = createPin(lat, lng, title, desc, formDate.value, mediaRefs)
+
     pinsStore.addPin(pin)
 
     if (mapRef.value && mapRef.value.renderAllPins) {
@@ -310,8 +393,11 @@ async function savePin() {
     formDate.value = ''
     selectedFiles.value = []
 
+    // optional: Album-Id behalten, wenn es in URL ist
     var albumId = route.query && route.query.albumId ? String(route.query.albumId) : ''
     formTripId.value = albumId ? albumId : ''
+
+    closeInlineAlbumCreate()
   } catch (e) {
     formError.value = e && e.message ? e.message : 'Speichern fehlgeschlagen.'
   } finally {
@@ -334,10 +420,14 @@ function cancelPin() {
 
   var albumId = route.query && route.query.albumId ? String(route.query.albumId) : ''
   formTripId.value = albumId ? albumId : ''
+
+  closeInlineAlbumCreate()
 }
 
 function createPin(lat, lng, title, description, dateValue, mediaArray) {
   var id = crypto.randomUUID()
+  var latitude = Number(lat)
+  var longitude = Number(lng)
 
   var t = String(title ?? '').trim()
   var text = String(description ?? '').trim()
@@ -349,8 +439,8 @@ function createPin(lat, lng, title, description, dateValue, mediaArray) {
 
   return {
     id: id,
-    lat: Number(lat),
-    lng: Number(lng),
+    lat: latitude,
+    lng: longitude,
     title: t,
     description: text,
     date: d,
@@ -368,6 +458,48 @@ function rerenderPins() {
     mapRef.value.renderAllPins(filteredPins.value)
   }
 }
+
+/* --- Inline Album Create --- */
+function openInlineAlbumCreate() {
+  isAlbumCreateOpen.value = true
+  newAlbumName.value = ''
+  albumCreateError.value = ''
+}
+
+function closeInlineAlbumCreate() {
+  isAlbumCreateOpen.value = false
+  newAlbumName.value = ''
+  albumCreateError.value = ''
+}
+
+function createAlbumInline() {
+  albumCreateError.value = ''
+  var name = String(newAlbumName.value ?? '').trim()
+  if (!name) {
+    albumCreateError.value = 'Bitte einen Album-Namen eingeben.'
+    return
+  }
+
+  // Duplikate vermeiden (case-insensitive)
+  var exists = tripsStore.trips.some(function (t) {
+    return String(t.name ?? '').trim().toLowerCase() === name.toLowerCase()
+  })
+  if (exists) {
+    albumCreateError.value = 'Ein Album mit diesem Namen existiert bereits.'
+    return
+  }
+
+  var created = tripsStore.addTrip(name)
+  if (!created) {
+    albumCreateError.value = 'Album konnte nicht erstellt werden.'
+    return
+  }
+
+  // Neu erstelltes Album direkt auswählen
+  formTripId.value = String(created.id)
+
+  closeInlineAlbumCreate()
+}
 </script>
 
 <style scoped>
@@ -378,29 +510,31 @@ function rerenderPins() {
 /* Pin-Form Overlay */
 .pin-form {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  right: 14px;
+  bottom: 14px;
   z-index: 4500;
-  width: 380px;
-  max-width: calc(100vw - 24px);
+  width: 420px;
+  max-width: calc(100vw - 28px);
 
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
+  border-radius: 18px;
+  padding: 14px;
   color: var(--fg);
 
-  box-shadow: 0 12px 24px var(--shadow);
+  box-shadow: 0 18px 40px var(--shadow);
+  backdrop-filter: blur(10px);
 }
 
 .pin-form-title {
-  font-size: 14px;
-  margin-bottom: 10px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: 0.2px;
 }
 
 .pin-form-row {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .pin-form-label {
@@ -409,17 +543,72 @@ function rerenderPins() {
   margin-bottom: 6px;
 }
 
+/* Modern input look */
 .pin-input {
   width: 100%;
-  height: 36px;
-  border-radius: 10px;
+  height: 42px;
+  border-radius: 12px;
+
   border: 1px solid var(--border);
   background: var(--panel-2);
   color: var(--fg);
-  padding: 0 10px;
+
+  padding: 0 12px;
   outline: none;
+
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
+.pin-input::placeholder {
+  color: var(--muted);
+  opacity: 0.9;
+}
+
+.pin-input:focus-visible {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focus-shadow);
+}
+
+/* Improve file input baseline (still native but cleaner) */
+.pin-input.file {
+  padding: 8px 12px;
+  height: auto;
+}
+
+/* Date: give room for icon */
+.pin-input[type="date"] {
+  padding-right: 44px;
+}
+
+/* Album row (select + button) */
+.album-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.album-create {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+}
+
+.album-create-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.album-create-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--danger-fg);
+}
+
+/* Upload list */
 .media-list {
   margin-top: 10px;
   display: grid;
@@ -429,11 +618,12 @@ function rerenderPins() {
 .media-item {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 10px;
+
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel-2);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
 }
 
 .media-text {
@@ -441,15 +631,17 @@ function rerenderPins() {
   gap: 8px;
   align-items: center;
   overflow: hidden;
+  min-width: 0;
 }
 
 .badge {
   font-size: 11px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   color: var(--fg);
-  opacity: 0.9;
+  background: color-mix(in srgb, var(--btn) 60%, transparent);
+  opacity: 0.95;
 }
 
 .url {
@@ -458,7 +650,6 @@ function rerenderPins() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
 }
 
 .media-hint {
@@ -467,24 +658,34 @@ function rerenderPins() {
   color: var(--muted);
 }
 
+/* Actions */
 .pin-form-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .btn {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 10px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+
   border: 1px solid var(--border);
   background: var(--btn);
   color: var(--fg);
+
   cursor: pointer;
+  font-weight: 650;
+  transition: background 120ms ease, transform 120ms ease, filter 120ms ease;
 }
 
 .btn:hover {
   background: var(--btn-hover);
+}
+
+.btn:active {
+  transform: translateY(0.5px);
 }
 
 .btn.secondary {
@@ -496,8 +697,9 @@ function rerenderPins() {
 }
 
 .btn.small {
-  height: 32px;
-  padding: 0 10px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
 }
 
 .pin-form-hint {
@@ -509,18 +711,19 @@ function rerenderPins() {
 /* Filter */
 .map-filter {
   position: absolute;
-  left: 12px;
-  top: 12px;
+  left: 14px;
+  top: 14px;
   z-index: 5000;
-  width: 220px;
+  width: 240px;
 
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 16px;
+  padding: 12px;
   color: var(--fg);
 
-  box-shadow: 0 12px 24px var(--shadow);
+  box-shadow: 0 18px 40px var(--shadow);
+  backdrop-filter: blur(10px);
 }
 
 .map-filter-label {

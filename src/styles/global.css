@@ -195,4 +195,24 @@ input, select, textarea {
   ::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.06);
   }
+
+}
+
+/* Native Form Controls sollen zum Theme passen */
+html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="contrast"] { color-scheme: dark; }
+
+/* Datepicker Icon sichtbar machen (Chrome/Safari/WebKit) */
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="contrast"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2);
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+html[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.75;
+  cursor: pointer;
 }
