@@ -3,7 +3,7 @@
   <header class="nav">
     <div class="brand" @click="goTo('/')">MemoryMap</div>
 
-    <!-- Suche nur auf Map (falls du sie schon hier integriert hast) -->
+    <!-- Suche nur auf der Karte -->
     <div v-if="isMap" class="search-wrap">
       <input
         v-model="q"
@@ -23,26 +23,17 @@
     </div>
 
     <nav class="tabs">
-      <RouterLink to="/map" class="tab" active-class="active">Map</RouterLink>
-      <RouterLink to="/" class="tab" active-class="active">Home</RouterLink>
+      <RouterLink to="/" class="tab" active-class="active">Start</RouterLink>
+      <RouterLink to="/map" class="tab" active-class="active">Karte</RouterLink>
       <RouterLink to="/pins" class="tab" active-class="active">Pins</RouterLink>
       <RouterLink to="/trips" class="tab" active-class="active">Alben</RouterLink>
     </nav>
 
-<div class="tools">
-  <button class="toolbtn" @click="theme.toggleMode()">
-    {{ theme.theme === 'contrast'
-      ? (theme.normalTheme === 'dark' ? 'Light' : 'Dark')
-      : (theme.theme === 'dark' ? 'Light' : 'Dark')
-    }}
-  </button>
-
-  <button class="toolbtn" @click="theme.toggleContrast()">
-    {{ theme.theme === 'contrast' ? 'Normal' : 'Kontrast' }}
-  </button>
-</div>
-
-
+    <div class="tools">
+      <button class="toolbtn" type="button" @click="theme.toggleTheme()">
+        {{ theme.theme === 'dark' ? 'Hell' : 'Dunkel' }}
+      </button>
+    </div>
   </header>
 </template>
 
@@ -79,8 +70,7 @@ function onInput() {
 
 function onEnter() {
   if (ui.mapSuggestions.length > 0) {
-    var first = ui.mapSuggestions[0]
-    selectSuggestion(first)
+    selectSuggestion(ui.mapSuggestions[0])
     return
   }
   searchOne(q.value)
@@ -176,7 +166,7 @@ async function fetchSuggestions(text) {
 
 .brand {
   color: var(--fg);
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -215,7 +205,7 @@ async function fetchSuggestions(text) {
 }
 
 .tab:hover {
-  background: rgba(0,0,0,0.06);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* Suche */
@@ -271,7 +261,7 @@ async function fetchSuggestions(text) {
 /* Tools */
 .tools {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
@@ -284,6 +274,7 @@ async function fetchSuggestions(text) {
   background: var(--btn);
   color: var(--fg);
   cursor: pointer;
+  font-weight: 650;
 }
 
 .toolbtn:hover {

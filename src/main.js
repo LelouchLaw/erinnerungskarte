@@ -11,10 +11,10 @@ const app = createApp(App)
 
 app.use(pinia)
 
-app.use(router)
+// Theme möglichst früh anwenden (vor UI-Render)
 var theme = useThemeStore(pinia)
 theme.loadTheme()
-theme.applyThemeToDom()
 
+app.use(router)
 
 app.mount('#app')

@@ -19,109 +19,126 @@
       <div class="pin-form" v-if="isFormOpen">
         <div class="pin-form-title">Neuer Pin</div>
 
-        <div class="pin-form-row">
-          <div class="pin-form-label">Titel (Pflicht)</div>
-          <input
-            class="pin-input"
-            type="text"
-            v-model="formTitle"
-            placeholder="z. B. Rom – Tag 1"
-          />
+        <!-- Fehlerbox: bleibt im Formular -->
+        <div class="form-error" v-if="formError">
+          {{ formError }}
         </div>
 
-        <div class="pin-form-row">
-          <div class="pin-form-label">Beschreibung (Pflicht)</div>
-          <input
-            class="pin-input"
-            type="text"
-            v-model="formDescription"
-            placeholder="z. B. Sonnenuntergang am Strand"
-          />
-        </div>
-
-        <div class="pin-form-row">
-          <div class="pin-form-label">Datum (optional)</div>
-          <input class="pin-input" type="date" v-model="formDate" />
-        </div>
-
-        <div class="pin-form-row">
-          <div class="pin-form-label">Album</div>
-
-          <!-- Select + Quick Create Button -->
-          <div class="album-row">
-            <select class="pin-input" v-model="formTripId">
-              <option value="">Kein Album</option>
-              <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
-                {{ t.name }}
-              </option>
-            </select>
-
-            <button class="btn secondary" type="button" @click="openInlineAlbumCreate">
-              + Neues Album
-            </button>
-          </div>
-
-          <!-- Inline Create -->
-          <div class="album-create" v-if="isAlbumCreateOpen">
+        <div class="pin-form-body">
+          <div class="pin-form-row">
+            <div class="pin-form-label">Titel <span class="req">(Pflicht)</span></div>
             <input
               class="pin-input"
               type="text"
-              v-model="newAlbumName"
-              placeholder="Album-Name (z. B. Italien 2025)"
-              @keydown.enter.prevent="createAlbumInline"
+              v-model="formTitle"
+              placeholder="z. B. Rom – Tag 1"
             />
-            <div class="album-create-actions">
-              <button class="btn" type="button" @click="createAlbumInline">Erstellen</button>
-              <button class="btn secondary" type="button" @click="closeInlineAlbumCreate">
-                Abbrechen
-              </button>
-            </div>
-            <div class="album-create-hint" v-if="albumCreateError">
-              {{ albumCreateError }}
-            </div>
           </div>
-        </div>
 
-        <!-- Upload -->
-        <div class="pin-form-row">
-          <div class="pin-form-label">Medien hochladen (Foto/Video)</div>
+          <div class="pin-form-row">
+            <div class="pin-form-label">Beschreibung <span class="opt">(optional)</span></div>
+            <input
+              class="pin-input"
+              type="text"
+              v-model="formDescription"
+              placeholder="z. B. Sonnenuntergang am Strand"
+            />
+          </div>
 
-          <input
-            class="pin-input file"
-            type="file"
-            multiple
-            accept="image/*,video/*"
-            @change="onFilesSelected"
-          />
+          <div class="pin-form-row">
+            <div class="pin-form-label">Zeitraum <span class="opt">(optional)</span></div>
 
-          <div class="media-list" v-if="selectedFiles.length > 0">
-            <div class="media-item" v-for="(f, i) in selectedFiles" :key="i">
-              <div class="media-text">
-                <span class="badge">{{ fileTypeLabel(f.type) }}</span>
-                <span class="url">{{ f.name }}</span>
+            <div class="date-grid">
+              <div class="date-field">
+                <div class="date-label">Von</div>
+                <input class="pin-input date" type="date" v-model="formDateFrom" />
               </div>
-              <button class="btn small secondary" type="button" @click="removeSelectedFile(i)">
-                Entfernen
-              </button>
+
+              <div class="date-field">
+                <div class="date-label">Bis</div>
+                <input class="pin-input date" type="date" v-model="formDateTo" />
+              </div>
+            </div>
+
+            <div class="date-hint">
+              Tipp: Du kannst auch nur „Von“ setzen (z. B. einzelner Tag).
             </div>
           </div>
 
-          <div class="media-hint" v-if="selectedFiles.length > 0">
-            Hinweis: Dateien werden im Browser (IndexedDB) gespeichert.
+          <div class="pin-form-row">
+            <div class="pin-form-label">Album</div>
+
+            <div class="album-row">
+              <select class="pin-input" v-model="formTripId">
+                <option value="">Kein Album</option>
+                <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
+                  {{ t.name }}
+                </option>
+              </select>
+
+              <button class="btnx secondary" type="button" @click="openInlineAlbumCreate">
+                + Neues Album
+              </button>
+            </div>
+
+            <div class="album-create" v-if="isAlbumCreateOpen">
+              <input
+                class="pin-input"
+                type="text"
+                v-model="newAlbumName"
+                placeholder="Album-Name (z. B. Italien 2025)"
+                @keydown.enter.prevent="createAlbumInline"
+              />
+
+              <div class="album-create-actions">
+                <button class="btnx" type="button" @click="createAlbumInline">Erstellen</button>
+                <button class="btnx secondary" type="button" @click="closeInlineAlbumCreate">
+                  Abbrechen
+                </button>
+              </div>
+
+              <div class="album-create-hint" v-if="albumCreateError">
+                {{ albumCreateError }}
+              </div>
+            </div>
+          </div>
+
+          <div class="pin-form-row">
+            <div class="pin-form-label">Medien hochladen <span class="req">(Pflicht)</span></div>
+
+            <input
+              class="pin-input file"
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              @change="onFilesSelected"
+            />
+
+            <div class="media-list" v-if="selectedFiles.length > 0">
+              <div class="media-item" v-for="(f, i) in selectedFiles" :key="i">
+                <div class="media-text">
+                  <span class="badge">{{ fileTypeLabel(f.type) }}</span>
+                  <span class="filename">{{ f.name }}</span>
+                </div>
+                <button class="btnx small secondary" type="button" @click="removeSelectedFile(i)">
+                  Entfernen
+                </button>
+              </div>
+            </div>
+
+            <div class="media-hint" v-if="selectedFiles.length > 0">
+              Hinweis: Dateien werden im Browser (IndexedDB) gespeichert.
+            </div>
           </div>
         </div>
 
         <div class="pin-form-actions">
-          <button class="btn" type="button" @click="savePin" :disabled="isSaving">
+          <button class="btnx" type="button" @click="savePin" :disabled="isSaving">
             {{ isSaving ? 'Speichern…' : 'Speichern' }}
           </button>
-          <button class="btn secondary" type="button" @click="cancelPin" :disabled="isSaving">
+          <button class="btnx secondary" type="button" @click="cancelPin" :disabled="isSaving">
             Abbrechen
           </button>
-        </div>
-
-        <div class="pin-form-hint" v-if="formError">
-          {{ formError }}
         </div>
       </div>
     </div>
@@ -136,12 +153,10 @@ import { usePinsStore } from '../stores/pinsStore.js'
 import { saveMediaFile } from '../services/mediaDb'
 import { useTripsStore } from '../stores/tripsStore'
 import { useUiStore } from '../stores/uiStore'
-import { useThemeStore } from '../stores/themeStore'
 
 var tripsStore = useTripsStore()
 var pinsStore = usePinsStore()
 var ui = useUiStore()
-var theme = useThemeStore()
 
 var route = useRoute()
 var router = useRouter()
@@ -154,7 +169,8 @@ var isFormOpen = ref(false)
 
 var formTitle = ref('')
 var formDescription = ref('')
-var formDate = ref('')
+var formDateFrom = ref('') 
+var formDateTo = ref('')     
 var formTripId = ref('')
 var formError = ref('')
 
@@ -179,9 +195,6 @@ onMounted(function () {
   if (mapRef.value && mapRef.value.renderAllPins) {
     mapRef.value.renderAllPins(filteredPins.value)
   }
-
-  // Karte initial auf Theme setzen
-  syncMapTilesToTheme()
 
   focusPinFromRoute()
 })
@@ -208,30 +221,6 @@ watch(
       mapRef.value.setView(loc.latitude, loc.longitude, 12)
     }
     ui.setMapSuggestions([])
-  }
-)
-
-// IMPORTANT: themeStore uses theme.theme + normalTheme (not theme.mode)
-function getEffectiveMapMode() {
-  // We only support 'dark' or 'light' tiles for now.
-  // In contrast we use light tiles for better readability.
-  if (theme.theme === 'light') return 'light'
-  if (theme.theme === 'contrast') return 'light'
-  return 'dark'
-}
-
-function syncMapTilesToTheme() {
-  if (mapRef.value && mapRef.value.setBaseLayer) {
-    mapRef.value.setBaseLayer(getEffectiveMapMode())
-  }
-}
-
-watch(
-  function () {
-    return theme.theme
-  },
-  function () {
-    syncMapTilesToTheme()
   }
 )
 
@@ -274,14 +263,13 @@ function onMapClick(payload) {
 
   formTitle.value = ''
   formDescription.value = ''
-  formDate.value = ''
+  formDateFrom.value = ''   // ✅ reset
+  formDateTo.value = ''     // ✅ reset
   selectedFiles.value = []
 
-  // Wenn albumId in URL ist, vorbefüllen, sonst leer
   var albumId = route.query && route.query.albumId ? String(route.query.albumId) : ''
   formTripId.value = albumId ? albumId : ''
 
-  // Inline Album create schließen
   closeInlineAlbumCreate()
 }
 
@@ -303,9 +291,9 @@ function removeSelectedFile(index) {
 
 function fileTypeLabel(mime) {
   var t = String(mime || '')
-  if (t.indexOf('image/') === 0) return 'image'
-  if (t.indexOf('video/') === 0) return 'video'
-  return 'file'
+  if (t.indexOf('image/') === 0) return 'Bild'
+  if (t.indexOf('video/') === 0) return 'Video'
+  return 'Datei'
 }
 
 async function savePin() {
@@ -314,12 +302,6 @@ async function savePin() {
   var title = String(formTitle.value ?? '').trim()
   if (!title) {
     formError.value = 'Bitte gib einen Titel ein.'
-    return
-  }
-
-  var desc = String(formDescription.value ?? '').trim()
-  if (!desc) {
-    formError.value = 'Bitte gib eine Beschreibung ein.'
     return
   }
 
@@ -348,7 +330,7 @@ async function savePin() {
       if (!file) continue
 
       if (file.size > 50 * 1024 * 1024) {
-        throw new Error('Eine Datei ist größer als 50MB. Bitte kleinere Datei wählen.')
+        throw new Error('Eine Datei ist größer als 50 MB. Bitte kleinere Datei wählen.')
       }
 
       var meta = await saveMediaFile(file)
@@ -370,7 +352,15 @@ async function savePin() {
       throw new Error('Upload fehlgeschlagen. Keine Dateien gespeichert.')
     }
 
-    var pin = createPin(lat, lng, title, desc, formDate.value, mediaRefs)
+    var pin = createPin(
+      lat,
+      lng,
+      title,
+      formDescription.value,
+      formDateFrom.value,
+      formDateTo.value,
+      mediaRefs
+    )
 
     pinsStore.addPin(pin)
 
@@ -386,14 +376,15 @@ async function savePin() {
       mapRef.value.clearPreviewMarker()
     }
 
+    // reset UI
     isFormOpen.value = false
     selectedLatLng.value = null
     formTitle.value = ''
     formDescription.value = ''
-    formDate.value = ''
+    formDateFrom.value = ''
+    formDateTo.value = ''
     selectedFiles.value = []
 
-    // optional: Album-Id behalten, wenn es in URL ist
     var albumId = route.query && route.query.albumId ? String(route.query.albumId) : ''
     formTripId.value = albumId ? albumId : ''
 
@@ -414,7 +405,8 @@ function cancelPin() {
   selectedLatLng.value = null
   formTitle.value = ''
   formDescription.value = ''
-  formDate.value = ''
+  formDateFrom.value = ''
+  formDateTo.value = ''
   formError.value = ''
   selectedFiles.value = []
 
@@ -424,7 +416,7 @@ function cancelPin() {
   closeInlineAlbumCreate()
 }
 
-function createPin(lat, lng, title, description, dateValue, mediaArray) {
+function createPin(lat, lng, title, description, dateFromValue, dateToValue, mediaArray) {
   var id = crypto.randomUUID()
   var latitude = Number(lat)
   var longitude = Number(lng)
@@ -432,8 +424,17 @@ function createPin(lat, lng, title, description, dateValue, mediaArray) {
   var t = String(title ?? '').trim()
   var text = String(description ?? '').trim()
 
-  var d = String(dateValue ?? '').trim()
-  if (!d) d = null
+  var from = String(dateFromValue ?? '').trim()
+  var to = String(dateToValue ?? '').trim()
+  if (!from) from = null
+  if (!to) to = null
+
+  // Reihenfolge sichern
+  if (from && to && from > to) {
+    var tmp = from
+    from = to
+    to = tmp
+  }
 
   var media = Array.isArray(mediaArray) ? mediaArray : []
 
@@ -442,8 +443,9 @@ function createPin(lat, lng, title, description, dateValue, mediaArray) {
     lat: latitude,
     lng: longitude,
     title: t,
-    description: text,
-    date: d,
+    description: text, // optional
+    dateFrom: from,
+    dateTo: to,
     tripId: formTripId.value ? String(formTripId.value) : null,
     tags: [],
     createdAt: Date.now(),
@@ -480,7 +482,6 @@ function createAlbumInline() {
     return
   }
 
-  // Duplikate vermeiden (case-insensitive)
   var exists = tripsStore.trips.some(function (t) {
     return String(t.name ?? '').trim().toLowerCase() === name.toLowerCase()
   })
@@ -495,9 +496,7 @@ function createAlbumInline() {
     return
   }
 
-  // Neu erstelltes Album direkt auswählen
   formTripId.value = String(created.id)
-
   closeInlineAlbumCreate()
 }
 </script>
@@ -513,24 +512,32 @@ function createAlbumInline() {
   right: 14px;
   bottom: 14px;
   z-index: 4500;
-  width: 420px;
+
+  width: 440px;
   max-width: calc(100vw - 28px);
 
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 14px;
   color: var(--fg);
 
   box-shadow: 0 18px 40px var(--shadow);
   backdrop-filter: blur(10px);
+
+  overflow: hidden; /* wichtig: Fehlerbox & Footer sauber */
 }
 
 .pin-form-title {
+  padding: 14px 14px 10px 14px;
   font-size: 15px;
-  font-weight: 800;
-  margin-bottom: 12px;
+  font-weight: 900;
   letter-spacing: 0.2px;
+}
+
+.pin-form-body {
+  padding: 0 14px 12px 14px;
+  max-height: 62vh;
+  overflow: auto;
 }
 
 .pin-form-row {
@@ -541,9 +548,31 @@ function createAlbumInline() {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
 }
 
-/* Modern input look */
+.req {
+  color: var(--danger-fg);
+  font-weight: 700;
+}
+.opt {
+  opacity: 0.9;
+}
+
+.form-error {
+  margin: 0 14px 10px 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Inputs */
 .pin-input {
   width: 100%;
   height: 42px;
@@ -556,7 +585,7 @@ function createAlbumInline() {
   padding: 0 12px;
   outline: none;
 
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .pin-input::placeholder {
@@ -569,18 +598,88 @@ function createAlbumInline() {
   box-shadow: 0 0 0 4px var(--focus-shadow);
 }
 
-/* Improve file input baseline (still native but cleaner) */
+/* File input */
 .pin-input.file {
   padding: 8px 12px;
   height: auto;
 }
+/* Wichtig gegen "läuft raus" */
+.pin-input,
+.btnx,
+select,
+input {
+  box-sizing: border-box;
+}
 
-/* Date: give room for icon */
-.pin-input[type="date"] {
+/* Inputs dürfen im Grid schrumpfen */
+.pin-input {
+  min-width: 0;
+}
+
+/* Zeitraum schöner: Labels + Abstand + gleiche Breite */
+.date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;              /* mehr Luft */
+  align-items: start;
+}
+
+.date-col {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.date-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Modal/Form darf nie breiter als Screen werden */
+.pin-form {
+  max-width: min(520px, calc(100vw - 28px));
+}
+
+/* Zeitraum */
+.date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.date-field {
+  min-width: 0;
+}
+
+.date-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* date input: icon sichtbar + Platz rechts */
+.pin-input.date {
   padding-right: 44px;
 }
 
-/* Album row (select + button) */
+/* WebKit Datepicker Icon: extra sichtbar im scoped Kontext */
+:global(html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator),
+:global(html[data-theme="contrast"] input[type="date"]::-webkit-calendar-picker-indicator) {
+  filter: invert(1) brightness(1.4);
+  opacity: 0.9;
+}
+
+:global(html[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator) {
+  opacity: 0.75;
+}
+
+.date-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Album row */
 .album-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -608,7 +707,7 @@ function createAlbumInline() {
   color: var(--danger-fg);
 }
 
-/* Upload list */
+/* Medien list */
 .media-list {
   margin-top: 10px;
   display: grid;
@@ -620,7 +719,6 @@ function createAlbumInline() {
   justify-content: space-between;
   gap: 10px;
   padding: 10px;
-
   border: 1px solid var(--border);
   border-radius: 14px;
   background: color-mix(in srgb, var(--panel-2) 70%, transparent);
@@ -639,12 +737,11 @@ function createAlbumInline() {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 3px 9px;
-  color: var(--fg);
   background: color-mix(in srgb, var(--btn) 60%, transparent);
   opacity: 0.95;
 }
 
-.url {
+.filename {
   font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
@@ -658,54 +755,44 @@ function createAlbumInline() {
   color: var(--muted);
 }
 
-/* Actions */
+/* Actions: sticky footer */
 .pin-form-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-top: 8px;
+
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
 }
 
-.btn {
+.btnx {
   height: 40px;
   padding: 0 14px;
   border-radius: 12px;
-
   border: 1px solid var(--border);
   background: var(--btn);
   color: var(--fg);
-
   cursor: pointer;
-  font-weight: 650;
-  transition: background 120ms ease, transform 120ms ease, filter 120ms ease;
+  font-weight: 700;
 }
 
-.btn:hover {
+.btnx:hover {
   background: var(--btn-hover);
 }
 
-.btn:active {
-  transform: translateY(0.5px);
-}
-
-.btn.secondary {
+.btnx.secondary {
   background: transparent;
 }
 
-.btn.secondary:hover {
+.btnx.secondary:hover {
   background: var(--panel-2);
 }
 
-.btn.small {
+.btnx.small {
   height: 34px;
   padding: 0 12px;
   border-radius: 12px;
-}
-
-.pin-form-hint {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--danger-fg);
 }
 
 /* Filter */

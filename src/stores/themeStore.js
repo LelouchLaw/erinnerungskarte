@@ -3,27 +3,20 @@ import { defineStore } from 'pinia'
 
 var STORAGE_KEY = 'memorymap_theme_v1'
 
-// allowed: 'dark' | 'light' | 'contrast'
-function normalizeTheme(v) {
-  var x = String(v || '').toLowerCase()
-  if (x === 'light') return 'light'
-  if (x === 'contrast') return 'contrast'
-  return 'dark'
+function safeTrim(v) {
+  return String(v ?? '').trim()
 }
 
-// allowed: 'dark' | 'light'  (normalTheme darf nie contrast sein)
-function normalizeNormal(v) {
-  var x = String(v || '').toLowerCase()
-  return x === 'light' ? 'light' : 'dark'
+function normalizeTheme(v) {
+  var t = safeTrim(v).toLowerCase()
+  if (t !== 'dark' && t !== 'light') return 'dark'
+  return t
 }
 
 export const useThemeStore = defineStore('theme', {
   state: function () {
     return {
-      // applied to <html data-theme="...">
-      theme: 'dark',        // 'dark' | 'light' | 'contrast'
-      // last non-contrast theme
-      normalTheme: 'dark'   // 'dark' | 'light'
+      theme: 'dark' // 'dark' | 'light'
     }
   },
 
@@ -31,84 +24,54 @@ export const useThemeStore = defineStore('theme', {
     loadTheme: function () {
       try {
         var raw = localStorage.getItem(STORAGE_KEY)
-
         if (!raw) {
           this.theme = 'dark'
-          this.normalTheme = 'dark'
           this.applyThemeToDom()
           return
         }
 
         var data = JSON.parse(raw)
-
-        var t = normalizeTheme(data && data.theme)
-        var n = normalizeNormal(data && data.normalTheme)
-
-        this.theme = t
-
-        // normalTheme soll immer der letzte "normale" Mode sein
-        if (t === 'contrast') {
-          this.normalTheme = n
-        } else {
-          this.normalTheme = t === 'light' ? 'light' : 'dark'
-        }
-
+        this.theme = normalizeTheme(data && data.theme)
         this.applyThemeToDom()
       } catch (e) {
         this.theme = 'dark'
-        this.normalTheme = 'dark'
         this.applyThemeToDom()
       }
     },
 
     saveTheme: function () {
       try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            theme: this.theme,
-            normalTheme: this.normalTheme
-          })
-        )
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: this.theme }))
       } catch (e) {
         // ignore
       }
     },
 
     applyThemeToDom: function () {
-      var root = document.documentElement
-      if (!root) return
-      root.setAttribute('data-theme', this.theme)
+      try {
+        var html = document.documentElement
+        if (!html) return
+
+        html.setAttribute('data-theme', this.theme)
+
+        // Falls früher gesetzt: Skin entfernen, damit nix „hängen bleibt“
+        html.removeAttribute('data-skin')
+
+        // Native Controls passend rendern
+        html.style.colorScheme = this.theme === 'light' ? 'light' : 'dark'
+      } catch (e) {
+        // ignore
+      }
     },
 
-    // Toggle Dark <-> Light
-    // If in contrast: toggle only normalTheme (base preference), keep DOM in contrast
-    toggleMode: function () {
-      if (this.theme === 'contrast') {
-        this.normalTheme = this.normalTheme === 'dark' ? 'light' : 'dark'
-        this.saveTheme()
-        return
-      }
-
-      this.theme = this.theme === 'dark' ? 'light' : 'dark'
-      this.normalTheme = this.theme
+    setTheme: function (nextTheme) {
+      this.theme = normalizeTheme(nextTheme)
       this.saveTheme()
       this.applyThemeToDom()
     },
 
-    // Toggle Contrast ON/OFF
-    toggleContrast: function () {
-      if (this.theme === 'contrast') {
-        // back to last normal mode
-        this.theme = this.normalTheme === 'light' ? 'light' : 'dark'
-        this.saveTheme()
-        this.applyThemeToDom()
-        return
-      }
-
-      // enter contrast; remember current normal mode
-      this.normalTheme = this.theme === 'light' ? 'light' : 'dark'
-      this.theme = 'contrast'
+    toggleTheme: function () {
+      this.theme = this.theme === 'dark' ? 'light' : 'dark'
       this.saveTheme()
       this.applyThemeToDom()
     }

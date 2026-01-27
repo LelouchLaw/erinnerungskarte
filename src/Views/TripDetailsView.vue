@@ -10,10 +10,10 @@
       </div>
 
       <div class="header-actions">
-        <button class="btn" @click="createPinInThisAlbum" :disabled="!tripId">
+        <button class="btnx" @click="createPinInThisAlbum" :disabled="!tripId">
           Neuen Pin in diesem Album
         </button>
-        <button class="btn secondary" @click="goBack">
+        <button class="btnx secondary" @click="goBack">
           Zurück
         </button>
       </div>
@@ -34,14 +34,14 @@
           <div class="desc" v-if="p.description">{{ p.description }}</div>
 
           <div class="meta">
-            <span v-if="p.date">{{ p.date }}</span>
+            <span v-if="formatDateRange(p)">{{ formatDateRange(p) }}</span>
             <span v-else>Kein Datum</span>
           </div>
         </div>
 
         <div class="actions">
-          <button class="btn" @click="openDetails(p.id)">Details</button>
-          <button class="btn" @click="openOnMap(p.id)">Auf Karte</button>
+          <button class="btnx" @click="openDetails(p.id)">Details</button>
+          <button class="btnx" @click="openOnMap(p.id)">Auf Karte</button>
         </div>
       </li>
     </ul>
@@ -105,6 +105,17 @@ function createPinInThisAlbum() {
   if (!id) return
   router.push({ path: '/map', query: { albumId: id } })
 }
+
+function formatDateRange(p) {
+  if (!p) return ''
+  var from = p.dateFrom ? String(p.dateFrom) : ''
+  var to = p.dateTo ? String(p.dateTo) : ''
+  if (from && to) return from + ' – ' + to
+  if (from) return from
+  if (to) return to
+  return ''
+}
+
 </script>
 
 <style scoped>
@@ -195,7 +206,7 @@ function createPinInThisAlbum() {
   justify-content: flex-end;
 }
 
-.btn {
+.btnx {
   height: 34px;
   padding: 0 12px;
   border-radius: 999px;
@@ -205,15 +216,15 @@ function createPinInThisAlbum() {
   cursor: pointer;
 }
 
-.btn:hover {
+.btnx:hover {
   background: var(--btn-hover);
 }
 
-.btn.secondary {
+.btnx.secondary {
   background: transparent;
 }
 
-.btn.secondary:hover {
+.btnx.secondary:hover {
   background: var(--panel-2);
 }
 </style>

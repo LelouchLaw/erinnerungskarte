@@ -136,7 +136,7 @@ function deleteTrip(tripId) {
           placeholder="Neues Album erstellen (z. B. Italien 2025)"
           @keyup.enter="createTrip"
         />
-        <button class="btn" @click="createTrip">Erstellen</button>
+        <button class="btnx" @click="createTrip">Erstellen</button>
       </div>
 
       <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
@@ -164,15 +164,15 @@ function deleteTrip(tripId) {
                 v-model="editingName"
                 @keyup.enter="saveEditTrip(x.trip.id)"
               />
-              <button class="btn" @click="saveEditTrip(x.trip.id)">Speichern</button>
-              <button class="btn secondary" @click="cancelEditTrip">Abbrechen</button>
+              <button class="btnx" @click="saveEditTrip(x.trip.id)">Speichern</button>
+              <button class="btnx secondary" @click="cancelEditTrip">Abbrechen</button>
             </div>
           </div>
 
           <div class="actions" v-if="editingTripId !== x.trip.id">
-            <button class="btn" @click="openAlbum(x.trip.id)">Ansehen</button>
-            <button class="btn secondary" @click="startEditTrip(x.trip)">Umbenennen</button>
-            <button class="btn danger" @click="deleteTrip(x.trip.id)">Löschen</button>
+            <button class="btnx" @click="openAlbum(x.trip.id)">Ansehen</button>
+            <button class="btnx secondary" @click="startEditTrip(x.trip)">Umbenennen</button>
+            <button class="btnx danger" @click="deleteTrip(x.trip.id)">Löschen</button>
           </div>
         </li>
       </ul>
@@ -218,7 +218,7 @@ h1 {
   outline: none;
 }
 
-.btn {
+.btnx {
   height: 38px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -228,25 +228,25 @@ h1 {
   cursor: pointer;
 }
 
-.btn:hover {
+.btnx:hover {
   background: var(--btn-hover);
 }
 
-.btn.secondary {
+.btnx.secondary {
   background: transparent;
 }
 
-.btn.secondary:hover {
+.btnx.secondary:hover {
   background: var(--panel-2);
 }
 
-.btn.danger {
+.btnx.danger {
   border-color: var(--danger-border);
   background: var(--danger-bg);
   color: var(--danger-fg);
 }
 
-.btn.danger:hover {
+.btnx.danger:hover {
   filter: brightness(1.05);
 }
 

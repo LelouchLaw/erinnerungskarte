@@ -8,8 +8,8 @@
       </div>
 
       <div class="hero-actions">
-        <button class="btn primary" @click="goToMap">Zur Karte</button>
-        <button class="btn" @click="goToPins">Pins ansehen</button>
+        <button class="btnx primary" @click="goToMap">Zur Karte</button>
+        <button class="btnx" @click="goToPins">Pins ansehen</button>
       </div>
     </div>
 
@@ -52,20 +52,20 @@
               </div>
 
               <div class="item-meta">
-                <span v-if="p.date">{{ p.date }}</span>
+                <span v-if="formatDateRange(p)">{{ formatDateRange(p) }}</span>
                 <span v-else>Kein Datum</span>
               </div>
             </div>
 
             <div class="item-actions">
-              <button class="btn small" @click="openDetail(p.id)">Details</button>
-              <button class="btn small secondary" @click="openOnMap(p.id)">Auf Karte</button>
+              <button class="btnx small" @click="openDetail(p.id)">Details</button>
+              <button class="btnx small secondary" @click="openOnMap(p.id)">Auf Karte</button>
             </div>
           </li>
         </ul>
 
         <div class="footer-actions" v-if="pinsCount > 0">
-          <button class="btn" @click="goToPins">Alle Pins anzeigen</button>
+          <button class="btnx" @click="goToPins">Alle Pins anzeigen</button>
         </div>
       </div>
     </div>
@@ -122,6 +122,17 @@ function openDetail(id) {
 function openOnMap(id) {
   router.push({ path: '/map', query: { pinId: id } })
 }
+
+function formatDateRange(p) {
+  if (!p) return ''
+  var from = p.dateFrom ? String(p.dateFrom) : ''
+  var to = p.dateTo ? String(p.dateTo) : ''
+  if (from && to) return from + ' – ' + to
+  if (from) return from
+  if (to) return to
+  return ''
+}
+
 </script>
 
 <style scoped>
@@ -260,7 +271,7 @@ function openOnMap(id) {
   margin-top: 12px;
 }
 
-.btn {
+.btnx {
   height: 36px;
   padding: 0 14px;
   border-radius: 999px;
@@ -269,18 +280,18 @@ function openOnMap(id) {
   color: var(--fg);
   cursor: pointer;
 }
-.btn:hover { background: var(--btn-hover); }
+.btnx:hover { background: var(--btn-hover); }
 
-.btn.primary {
+.btnx.primary {
   border-color: var(--border);
   background: var(--btn-hover);
 }
 
-.btn.secondary {
+.btnx.secondary {
   background: transparent;
 }
 
-.btn.small {
+.btnx.small {
   height: 32px;
   padding: 0 12px;
   border-radius: 999px;

@@ -78,6 +78,21 @@ function normalizeDateString(dateValue) {
   return d ? d : null
 }
 
+function normalizeDateRange(fromValue, toValue) {
+  var from = normalizeDateString(fromValue)
+  var to = normalizeDateString(toValue)
+
+  // Wenn beide gesetzt sind, aber Reihenfolge falsch: tauschen
+  if (from && to && from > to) {
+    var tmp = from
+    from = to
+    to = tmp
+  }
+
+  return { from: from, to: to }
+}
+
+
 // Normalisiert ein Pin-Objekt robust
 function normalizePin(pin) {
   var p = pin && typeof pin === 'object' ? pin : {}
@@ -88,21 +103,23 @@ function normalizePin(pin) {
   var updated = Number(p.updatedAt)
   if (!updated || isNaN(updated)) updated = created
 
+  // Abwärtskompatibel: alte Pins mit p.date werden zu dateFrom
+  var range = normalizeDateRange(p.dateFrom ?? p.date ?? null, p.dateTo ?? null)
+
   return {
     id: toTrimmedString(p.id) || crypto.randomUUID(),
 
     lat: Number(p.lat),
     lng: Number(p.lng),
 
-    title: toTrimmedString(p.title), // darf leer sein, aber existiert immer
+    title: toTrimmedString(p.title),
     description: toTrimmedString(p.description),
 
-    date: normalizeDateString(p.date),
+    dateFrom: range.from,
+    dateTo: range.to,
 
     tripId: normalizeTripId(p.tripId),
-
     visibility: normalizeVisibility(p.visibility),
-
     tags: normalizeTags(p.tags),
 
     createdAt: created,
@@ -216,9 +233,13 @@ export const usePinsStore = defineStore('pins', {
         }
 
         // Datum
-        if (patch.date !== undefined) {
-          p.date = normalizeDateString(patch.date)
-        }
+      if (patch.dateFrom !== undefined || patch.dateTo !== undefined) {
+        var nextFrom = patch.dateFrom !== undefined ? patch.dateFrom : p.dateFrom
+        var nextTo = patch.dateTo !== undefined ? patch.dateTo : p.dateTo
+        var r = normalizeDateRange(nextFrom, nextTo)
+        p.dateFrom = r.from
+        p.dateTo = r.to
+      }
 
         // Album/Trip
         if (patch.tripId !== undefined) {

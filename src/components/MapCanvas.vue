@@ -51,12 +51,9 @@ function cleanupMarkerObjectUrls() {
  * sonst direkt theme.theme.
  */
 var mapMode = computed(function () {
-  var t = String(theme.theme || 'dark') // 'dark' | 'light' | 'contrast'
-  if (t === 'contrast') {
-    return String(theme.normalTheme || 'dark') // 'dark' | 'light'
-  }
-  return t
+  return theme.theme === 'light' ? 'light' : 'dark'
 })
+
 
 function getTileUrlForMode(mode) {
   var m = String(mode || 'dark')
@@ -162,15 +159,12 @@ function clearPreviewMarker() {
 }
 
 function buildCaption(pin) {
-  var year = ''
-  if (pin.date) {
-    var s = String(pin.date)
-    if (s.length >= 4) year = s.slice(0, 4)
-  }
-
-  if (year) return String(pin.description) + ', ' + year
-  return String(pin.description)
+  // Nur Titel anzeigen (Beschreibung nicht auf der Karte)
+  var title = pin && pin.title ? String(pin.title).trim() : ''
+  if (title) return title
+  return 'Ohne Titel'
 }
+
 
 function escapeHtml(str) {
   var s = String(str ?? '')
@@ -255,17 +249,6 @@ function addPinMarker(pin) {
   if (!markersById) markersById = {}
 
   var marker = L.marker([pin.lat, pin.lng], { icon: makeLoadingIcon() })
-
-  var text = ''
-  if (pin.title) {
-    text = '<b>' + escapeHtml(pin.title) + '</b><br />'
-  }
-  text = text + escapeHtml(pin.description || '')
-  if (pin.date) {
-    text = text + '<br />' + escapeHtml(pin.date)
-  }
-
-  marker.bindPopup(text)
 
   marker.on('click', function () {
     if (pin && pin.id) {
@@ -365,9 +348,6 @@ function focusPin(pin) {
   var marker = markersById[pin.id]
   map.setView([pin.lat, pin.lng], 13)
 
-  if (marker && marker.openPopup) {
-    marker.openPopup()
-  }
 }
 
 function updateAssetMarkerIconsForZoom() {
@@ -481,7 +461,7 @@ watch(
 :global(.asset-needle) {
   width: 12px;
   height: 12px;
-  background: var(--accent);
+  background: #e11d48;;
   border-radius: 999px;
   margin: 8px auto 0 auto;
   box-shadow: 0 6px 10px var(--shadow);
@@ -498,6 +478,7 @@ watch(
   height: 18px;
   background: var(--border);
   border-radius: 2px;
+  background: rgba(0,0,0,0.35);
 }
 
 /* Loading State */
@@ -538,4 +519,5 @@ watch(
   justify-content: center;
   font-size: 16px;
 }
+
 </style>

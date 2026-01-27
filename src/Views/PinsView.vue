@@ -28,7 +28,7 @@
           </div>
 
           <div class="meta">
-            <span v-if="p.date">{{ p.date }}</span>
+            <span v-if="formatDateRange(p)">{{ formatDateRange(p) }}</span>
             <span v-else>Kein Datum</span>
 
             <span class="dot">·</span>
@@ -40,11 +40,11 @@
 
         <!-- UX: Primär = Auf Karte + Details; Sekundär = Bearbeiten; Danger = Löschen -->
         <div class="actions">
-          <button class="btn primary" @click="openOnMap(p.id)">Auf Karte</button>
-          <button class="btn primary" @click="openDetails(p.id)">Details</button>
+          <button class="btnx primary" @click="openOnMap(p.id)">Auf Karte</button>
+          <button class="btnx primary" @click="openDetails(p.id)">Details</button>
 
-          <button class="btn secondary" @click="openEdit(p)">Bearbeiten</button>
-          <button class="btn danger" @click="deletePin(p.id)">Löschen</button>
+          <button class="btnx secondary" @click="openEdit(p)">Bearbeiten</button>
+          <button class="btnx danger" @click="deletePin(p.id)">Löschen</button>
         </div>
       </li>
     </ul>
@@ -61,14 +61,21 @@
       </div>
 
       <div class="row">
-        <div class="label">Beschreibung (Pflicht)</div>
+<div class="label">Beschreibung (optional)</div>
         <input class="input" type="text" v-model="editDescription" />
       </div>
 
       <div class="row">
-        <div class="label">Datum (optional)</div>
-        <input class="input" type="date" v-model="editDate" />
+        <div class="label">Zeitraum (optional)</div>
+
+        <div class="date-row">
+          <input class="input" type="date" v-model="editDateFrom" />
+          <input class="input" type="date" v-model="editDateTo" />
+        </div>
+
+        <div class="date-hint">Von/Bis – du kannst auch nur eins setzen.</div>
       </div>
+
 
       <div class="row">
         <div class="label">Album</div>
@@ -81,8 +88,8 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn primary" @click="saveEdit">Speichern</button>
-        <button class="btn secondary" @click="closeEdit">Abbrechen</button>
+        <button class="btnx primary" @click="saveEdit">Speichern</button>
+        <button class="btnx secondary" @click="closeEdit">Abbrechen</button>
       </div>
 
       <div class="error" v-if="editError">{{ editError }}</div>
@@ -141,7 +148,8 @@ var isEditOpen = ref(false)
 var editId = ref('')
 var editTitle = ref('')
 var editDescription = ref('')
-var editDate = ref('')
+var editDateFrom = ref('')
+var editDateTo = ref('')
 var editTripId = ref('')
 var editError = ref('')
 
@@ -154,7 +162,8 @@ function openEdit(pin) {
 
   editTitle.value = pin.title || ''
   editDescription.value = pin.description || ''
-  editDate.value = pin.date || ''
+  editDateFrom.value = pin.dateFrom || ''
+  editDateTo.value = pin.dateTo || ''
   editTripId.value = pin.tripId ? String(pin.tripId) : ''
 }
 
@@ -164,7 +173,8 @@ function closeEdit() {
   editId.value = ''
   editTitle.value = ''
   editDescription.value = ''
-  editDate.value = ''
+editDateFrom.value = ''
+editDateTo.value = ''
   editTripId.value = ''
 }
 
@@ -175,21 +185,32 @@ function saveEdit() {
     return
   }
 
-  var desc = String(editDescription.value ?? '').trim()
-  if (!desc) {
-    editError.value = 'Bitte gib eine Beschreibung ein.'
-    return
-  }
+var desc = String(editDescription.value ?? '').trim()
+
+
 
   pinsStore.updatePin(editId.value, {
-    title: title,
-    description: desc,
-    date: editDate.value,
-    tripId: editTripId.value ? String(editTripId.value) : null
-  })
+  title: title,
+  description: desc,
+  dateFrom: editDateFrom.value,
+  dateTo: editDateTo.value,
+  tripId: editTripId.value ? String(editTripId.value) : null
+})
+
 
   closeEdit()
 }
+
+function formatDateRange(p) {
+  if (!p) return ''
+  var from = p.dateFrom ? String(p.dateFrom) : ''
+  var to = p.dateTo ? String(p.dateTo) : ''
+  if (from && to) return from + ' – ' + to
+  if (from) return from
+  if (to) return to
+  return ''
+}
+
 </script>
 
 <style scoped>
@@ -299,7 +320,7 @@ function saveEdit() {
   justify-content: flex-end;
 }
 
-.btn {
+.btnx {
   height: 34px;
   padding: 0 12px;
   border-radius: 999px;
@@ -309,25 +330,25 @@ function saveEdit() {
   cursor: pointer;
 }
 
-.btn:hover {
+.btnx:hover {
   background: var(--btn-hover);
 }
 
-.btn.secondary {
+.btnx.secondary {
   background: transparent;
 }
 
-.btn.secondary:hover {
+.btnx.secondary:hover {
   background: var(--panel-2);
 }
 
-.btn.danger {
+.btnx.danger {
   border-color: var(--danger-border);
   background: var(--danger-bg);
   color: var(--danger-fg);
 }
 
-.btn.danger:hover {
+.btnx.danger:hover {
   filter: brightness(1.06);
 }
 
@@ -395,4 +416,17 @@ function saveEdit() {
   font-size: 12px;
   color: var(--danger-fg);
 }
+
+.date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.date-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 </style>
