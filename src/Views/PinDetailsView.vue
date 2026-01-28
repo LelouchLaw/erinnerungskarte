@@ -1,4 +1,4 @@
-
+<!-- src/views/PinDetailsView.vue -->
 <template>
   <div class="page">
     <h1 class="title">{{ pin && pin.title ? pin.title : 'Pin-Details' }}</h1>
@@ -8,10 +8,7 @@
     <div v-if="pin" class="card">
       <div class="row">
         <div class="label">Titel</div>
-        <div class="value">
-          <span v-if="pin.title">{{ pin.title }}</span>
-          <span v-else>Ohne Titel</span>
-        </div>
+        <div class="value">{{ pin.title || 'Ohne Titel' }}</div>
       </div>
 
       <div class="row">
@@ -25,7 +22,7 @@
       <div class="row">
         <div class="label">Zeitraum</div>
         <div class="value">
-          <span v-if="formattedRange">{{ formattedRange }}</span>
+          <span v-if="rangeText">{{ rangeText }}</span>
           <span v-else class="muted">Kein Zeitraum</span>
         </div>
       </div>
@@ -42,54 +39,80 @@
       <div class="row">
         <div class="label">Medien</div>
 
-        <div class="value" v-if="!pin.media || pin.media.length === 0">
-          <span class="muted">Keine Medien</span>
-        </div>
+        <div class="value" v-if="!pin.media || pin.media.length === 0">Keine Medien</div>
 
-        <div v-if="pin.media && pin.media.length > 0">
+        <div v-else>
           <div class="media-status" v-if="isLoadingMedia">Medien werden geladen…</div>
-
-          <div class="media-status error" v-if="mediaError">
-            {{ mediaError }}
-          </div>
+          <div class="media-status error" v-if="mediaError">{{ mediaError }}</div>
 
           <div class="media-grid" v-if="mediaItems.length > 0">
             <div class="media-card" v-for="m in mediaItems" :key="m.id">
               <div class="media-top">
                 <div class="media-type">
-                  <span v-if="m.type === 'image'">Bild</span>
+                  <span v-if="m.type === 'image'">Foto</span>
                   <span v-else-if="m.type === 'video'">Video</span>
                   <span v-else>Datei</span>
                   <span v-if="m.name"> · {{ m.name }}</span>
                 </div>
 
-                <button
-                  class="btnx tiny danger"
-                  @click="removeOneMedia(m.id)"
-                  :disabled="isMutatingMedia"
-                >
-                  Entfernen
-                </button>
+                <div class="media-actions">
+                  <button
+                    class="btnx tiny"
+                    type="button"
+                    @click="setAsCover(m.id)"
+                    :disabled="isMutatingMedia"
+                    v-if="m.type === 'image' || m.type === 'video'"
+                  >
+                    {{ isCover(m.id) ? 'Cover' : 'Als Cover' }}
+                  </button>
+
+                  <button
+                    class="btnx tiny danger"
+                    type="button"
+                    @click="removeOneMedia(m.id)"
+                    :disabled="isMutatingMedia"
+                  >
+                    Entfernen
+                  </button>
+                </div>
               </div>
 
-              <img
+              <!-- Click-to-zoom -->
+              <button
                 v-if="m.type === 'image' && m.objectUrl"
-                class="media-img"
-                :src="m.objectUrl"
-                alt="Bild"
-              />
+                class="media-preview"
+                type="button"
+                @click="openLightbox(m)"
+                aria-label="Foto vergrößern"
+              >
+                <img class="media-img" :src="m.objectUrl" alt="Foto" />
+              </button>
 
-              <video
+              <button
                 v-if="m.type === 'video' && m.objectUrl"
-                class="media-video"
-                :src="m.objectUrl"
-                controls
-              ></video>
+                class="media-preview"
+                type="button"
+                @click="openLightbox(m)"
+                aria-label="Video vergrößern"
+              >
+                <video class="media-video" :src="m.objectUrl" muted playsinline></video>
+                <div class="play-hint">▶</div>
+              </button>
 
               <div class="media-missing" v-if="!m.objectUrl">
                 Datei nicht verfügbar (vielleicht gelöscht).
               </div>
             </div>
+          </div>
+
+          <!-- Cover entfernen -->
+          <div class="cover-row" v-if="pin.coverMediaId">
+            <div class="cover-text">
+              Cover gesetzt.
+            </div>
+            <button class="btnx secondary" type="button" @click="clearCover" :disabled="isMutatingMedia">
+              Cover entfernen
+            </button>
           </div>
         </div>
 
@@ -99,7 +122,7 @@
 
           <input
             ref="fileInputRef"
-            class="input"
+            class="inputx"
             type="file"
             multiple
             accept="image/*,video/*"
@@ -108,16 +131,11 @@
           />
 
           <div class="media-add-hint">
-            Du kannst Fotos und Videos nachträglich hinzufügen. Max. 50 MB pro Datei.
+            Du kannst Fotos und Videos nachträglich hinzufügen. Max. 50MB pro Datei.
           </div>
 
-          <div class="media-status error" v-if="addMediaError">
-            {{ addMediaError }}
-          </div>
-
-          <div class="media-status" v-if="isMutatingMedia">
-            Änderung wird gespeichert…
-          </div>
+          <div class="media-status error" v-if="addMediaError">{{ addMediaError }}</div>
+          <div class="media-status" v-if="isMutatingMedia">Änderung wird gespeichert…</div>
         </div>
       </div>
 
@@ -129,6 +147,33 @@
       </div>
     </div>
 
+    <!-- Lightbox -->
+    <div class="lb-backdrop" v-if="lightboxOpen" @click="closeLightbox"></div>
+    <div class="lb-modal" v-if="lightboxOpen" role="dialog" aria-modal="true">
+      <div class="lb-top">
+        <div class="lb-title">
+          <span v-if="lightboxItem && lightboxItem.name">{{ lightboxItem.name }}</span>
+          <span v-else>Vorschau</span>
+        </div>
+        <button class="btnx small secondary" type="button" @click="closeLightbox">Schließen</button>
+      </div>
+
+      <img
+        v-if="lightboxItem && lightboxItem.type === 'image' && lightboxItem.objectUrl"
+        class="lb-img"
+        :src="lightboxItem.objectUrl"
+        alt="Foto groß"
+      />
+
+      <video
+        v-if="lightboxItem && lightboxItem.type === 'video' && lightboxItem.objectUrl"
+        class="lb-video"
+        :src="lightboxItem.objectUrl"
+        controls
+        autoplay
+      ></video>
+    </div>
+
     <!-- Edit Overlay -->
     <div class="backdrop" v-if="isEditOpen" @click="closeEdit"></div>
 
@@ -136,36 +181,33 @@
       <div class="modal-title">Pin bearbeiten</div>
 
       <div class="row">
-        <div class="label">Titel <span class="req">(Pflicht)</span></div>
-        <input class="input" type="text" v-model="editTitle" />
+        <div class="label">Titel (Pflicht)</div>
+        <input class="inputx" type="text" v-model="editTitle" />
       </div>
 
       <div class="row">
-        <div class="label">Beschreibung <span class="opt">(optional)</span></div>
-        <input class="input" type="text" v-model="editDescription" />
+        <div class="label">Beschreibung (optional)</div>
+        <input class="inputx" type="text" v-model="editDescription" />
       </div>
 
       <div class="row">
-        <div class="label">Zeitraum <span class="opt">(optional)</span></div>
-
-        <div class="date-row">
-          <div class="date-field">
-            <div class="date-label">Von</div>
-            <input class="input date" type="date" v-model="editDateFrom" />
+        <div class="label">Zeitraum (optional)</div>
+        <div class="range-grid">
+          <div>
+            <div class="mini-label">Von</div>
+            <input class="inputx" type="date" v-model="editDateFrom" />
           </div>
-
-          <div class="date-field">
-            <div class="date-label">Bis</div>
-            <input class="input date" type="date" v-model="editDateTo" />
+          <div>
+            <div class="mini-label">Bis</div>
+            <input class="inputx" type="date" v-model="editDateTo" />
           </div>
         </div>
-
-        <div class="date-hint">Tipp: Du kannst auch nur „Von“ setzen.</div>
+        <div class="mini-hint">Du kannst auch nur ein Datum setzen.</div>
       </div>
 
       <div class="row">
         <div class="label">Album</div>
-        <select class="input" v-model="editTripId">
+        <select class="inputx" v-model="editTripId">
           <option value="">Kein Album</option>
           <option v-for="t in tripsStore.trips" :key="t.id" :value="t.id">
             {{ t.name }}
@@ -205,8 +247,12 @@ var isMutatingMedia = ref(false)
 var addMediaError = ref('')
 var fileInputRef = ref(null)
 
-// cleanup object urls
+// ObjectURLs cleanup
 var objectUrls = []
+
+// Lightbox
+var lightboxOpen = ref(false)
+var lightboxItem = ref(null)
 
 /* --- Edit State --- */
 var isEditOpen = ref(false)
@@ -231,6 +277,7 @@ watch(
   function () {
     loadMediaForCurrentPin()
     closeEdit()
+    closeLightbox()
   }
 )
 
@@ -244,44 +291,19 @@ var pin = computed(function () {
   return pinsStore.getPinById(id)
 })
 
-var formattedRange = computed(function () {
+var rangeText = computed(function () {
   if (!pin.value) return ''
-
-  var from = pin.value.dateFrom ? String(pin.value.dateFrom) : ''
-  var to = pin.value.dateTo ? String(pin.value.dateTo) : ''
-
-  if (!from && !to) return ''
-  if (from && !to) return formatDateDE(from)
-  if (!from && to) return formatDateDE(to)
-  if (from === to) return formatDateDE(from)
-
-  return formatDateDE(from) + ' – ' + formatDateDE(to)
+  var a = pin.value.dateFrom ? String(pin.value.dateFrom) : ''
+  var b = pin.value.dateTo ? String(pin.value.dateTo) : ''
+  if (a && b) return a + ' bis ' + b
+  if (a) return 'ab ' + a
+  if (b) return 'bis ' + b
+  return ''
 })
 
-function formatDateDE(iso) {
-  // iso: YYYY-MM-DD
-  try {
-    var s = String(iso || '')
-    if (!s) return ''
-    var parts = s.split('-')
-    if (parts.length !== 3) return s
-    var yyyy = parts[0]
-    var mm = parts[1]
-    var dd = parts[2]
-    return dd + '.' + mm + '.' + yyyy
-  } catch (e) {
-    return String(iso || '')
-  }
-}
-
 function cleanupObjectUrls() {
-  var i
-  for (i = 0; i < objectUrls.length; i = i + 1) {
-    try {
-      URL.revokeObjectURL(objectUrls[i])
-    } catch (e) {
-      // ignore
-    }
+  for (var i = 0; i < objectUrls.length; i = i + 1) {
+    try { URL.revokeObjectURL(objectUrls[i]) } catch (e) {}
   }
   objectUrls = []
 }
@@ -299,11 +321,8 @@ async function loadMediaForCurrentPin() {
 
   try {
     var items = []
-    var i
-
-    for (i = 0; i < pin.value.media.length; i = i + 1) {
+    for (var i = 0; i < pin.value.media.length; i = i + 1) {
       var refItem = pin.value.media[i]
-
       var id = refItem && refItem.id ? String(refItem.id) : ''
       if (!id) continue
 
@@ -319,13 +338,7 @@ async function loadMediaForCurrentPin() {
         objectUrls.push(objectUrl)
       }
 
-      items.push({
-        id: id,
-        type: type,
-        name: name,
-        mime: mime,
-        objectUrl: objectUrl
-      })
+      items.push({ id: id, type: type, name: name, mime: mime, objectUrl: objectUrl })
     }
 
     mediaItems.value = items
@@ -334,6 +347,16 @@ async function loadMediaForCurrentPin() {
   } finally {
     isLoadingMedia.value = false
   }
+}
+
+function openLightbox(m) {
+  if (!m || !m.objectUrl) return
+  lightboxItem.value = m
+  lightboxOpen.value = true
+}
+function closeLightbox() {
+  lightboxOpen.value = false
+  lightboxItem.value = null
 }
 
 function openOnMap(id) {
@@ -347,9 +370,34 @@ function goBack() {
 async function deleteThisPin(id) {
   var ok = window.confirm('Diesen Pin wirklich löschen?')
   if (!ok) return
-
   await pinsStore.deletePinAndMedia(id)
   router.push({ path: '/pins' })
+}
+
+/* --- Cover --- */
+function isCover(mediaId) {
+  if (!pin.value) return false
+  return String(pin.value.coverMediaId ?? '') === String(mediaId ?? '')
+}
+
+function setAsCover(mediaId) {
+  if (!pin.value) return
+  isMutatingMedia.value = true
+  try {
+    pinsStore.updatePin(pin.value.id, { coverMediaId: String(mediaId) })
+  } finally {
+    isMutatingMedia.value = false
+  }
+}
+
+function clearCover() {
+  if (!pin.value) return
+  isMutatingMedia.value = true
+  try {
+    pinsStore.updatePin(pin.value.id, { coverMediaId: null })
+  } finally {
+    isMutatingMedia.value = false
+  }
 }
 
 /* --- Editing --- */
@@ -358,13 +406,12 @@ function openEdit() {
 
   isEditOpen.value = true
   editError.value = ''
+
   editId.value = pin.value.id
   editTitle.value = pin.value.title || ''
   editDescription.value = pin.value.description || ''
-
   editDateFrom.value = pin.value.dateFrom || ''
   editDateTo.value = pin.value.dateTo || ''
-
   editTripId.value = pin.value.tripId ? String(pin.value.tripId) : ''
 }
 
@@ -379,24 +426,6 @@ function closeEdit() {
   editTripId.value = ''
 }
 
-function normalizeDateRange(fromValue, toValue) {
-  var from = String(fromValue ?? '').trim()
-  var to = String(toValue ?? '').trim()
-  if (!from) from = ''
-  if (!to) to = ''
-
-  if (from && to && from > to) {
-    var tmp = from
-    from = to
-    to = tmp
-  }
-
-  return {
-    from: from ? from : null,
-    to: to ? to : null
-  }
-}
-
 function saveEdit() {
   if (!editId.value) return
 
@@ -406,15 +435,13 @@ function saveEdit() {
     return
   }
 
-  var desc = String(editDescription.value ?? '').trim() // optional
-
-  var range = normalizeDateRange(editDateFrom.value, editDateTo.value)
+  var desc = String(editDescription.value ?? '').trim()
 
   pinsStore.updatePin(editId.value, {
     title: title,
     description: desc,
-    dateFrom: range.from,
-    dateTo: range.to,
+    dateFrom: editDateFrom.value,
+    dateTo: editDateTo.value,
     tripId: editTripId.value ? String(editTripId.value) : null
   })
 
@@ -432,11 +459,7 @@ async function onAddFilesSelected(event) {
 
   try {
     await pinsStore.addMediaToPin(pin.value.id, files)
-
-    if (fileInputRef.value) {
-      fileInputRef.value.value = ''
-    }
-
+    if (fileInputRef.value) fileInputRef.value.value = ''
     await loadMediaForCurrentPin()
   } catch (e) {
     addMediaError.value = e && e.message ? e.message : 'Medien konnten nicht hinzugefügt werden.'
@@ -454,6 +477,11 @@ async function removeOneMedia(mediaId) {
   isMutatingMedia.value = true
 
   try {
+    // wenn Cover gelöscht wird -> Cover entfernen
+    if (isCover(mediaId)) {
+      pinsStore.updatePin(pin.value.id, { coverMediaId: null })
+    }
+
     await pinsStore.removeMediaFromPin(pin.value.id, mediaId)
     await loadMediaForCurrentPin()
   } catch (e) {
@@ -465,19 +493,11 @@ async function removeOneMedia(mediaId) {
 </script>
 
 <style scoped>
-.page {
-  padding: 12px;
-}
+.page { padding: 12px; }
+.title { margin: 6px 0 10px; }
 
-.title {
-  margin: 6px 0 10px;
-}
-
-.hint {
-  margin-top: 10px;
-  opacity: 0.9;
-  color: var(--muted);
-}
+.hint { margin-top: 10px; opacity: 0.9; color: var(--muted); }
+.muted { color: var(--muted); }
 
 .card {
   margin-top: 12px;
@@ -490,78 +510,34 @@ async function removeOneMedia(mediaId) {
   box-shadow: 0 12px 24px var(--shadow);
 }
 
-.row {
-  margin-bottom: 12px;
-}
+.row { margin-bottom: 12px; }
 
 .label {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
 }
 
-.value {
-  font-size: 14px;
-}
+.value { font-size: 14px; }
 
-.muted {
-  color: var(--muted);
-}
+/* actions */
+.actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
-/* Actions */
-.actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.btnx {
-  height: 34px;
-  padding: 0 12px;
+/* Inputs (nutzt deine globale inputx, falls du eine hast) */
+.inputx {
+  width: 100%;
+  height: 36px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--btn);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.btnx:hover {
-  background: var(--btn-hover);
-}
-
-.btnx.secondary {
-  background: transparent;
-}
-
-.btnx.secondary:hover {
   background: var(--panel-2);
-}
-
-.btnx.danger {
-  border-color: var(--danger-border);
-  background: var(--danger-bg);
   color: var(--fg);
-}
-
-.btnx.danger:hover {
-  filter: brightness(1.06);
+  padding: 0 10px;
+  outline: none;
 }
 
 /* Medien */
-.media-status {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 6px 0 10px 0;
-}
-
-.media-status.error,
-.error {
-  color: var(--danger-fg);
-}
+.media-status { font-size: 12px; color: var(--muted); margin: 6px 0 10px 0; }
+.media-status.error, .error { color: var(--danger-fg); }
 
 .media-grid {
   display: grid;
@@ -581,9 +557,11 @@ async function removeOneMedia(mediaId) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 8px;
 }
+
+.media-actions { display: flex; gap: 8px; align-items: center; }
 
 .media-type {
   font-size: 12px;
@@ -594,12 +572,22 @@ async function removeOneMedia(mediaId) {
   white-space: nowrap;
 }
 
+.media-preview {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+
 .media-img {
   width: 100%;
   height: 170px;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--border);
+  display: block;
 }
 
 .media-video {
@@ -608,13 +596,35 @@ async function removeOneMedia(mediaId) {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg);
+  display: block;
 }
 
-.media-missing {
-  font-size: 12px;
-  margin-top: 6px;
-  color: var(--danger-fg);
+.play-hint {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
 }
+
+.media-missing { font-size: 12px; margin-top: 6px; color: var(--danger-fg); }
+
+.cover-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.cover-text { font-size: 12px; color: var(--muted); }
 
 .media-add {
   margin-top: 12px;
@@ -622,30 +632,13 @@ async function removeOneMedia(mediaId) {
   border-top: 1px solid var(--border);
 }
 
-.media-add-title {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
+.media-add-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.media-add-hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
 
-.media-add-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* tiny buttons */
-.btnx.tiny {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 10px;
-}
-
-/* Modal */
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0,0,0,0.35);
   z-index: 6000;
 }
 
@@ -665,70 +658,63 @@ async function removeOneMedia(mediaId) {
   box-shadow: 0 18px 40px var(--shadow);
 }
 
-.modal-title {
-  font-size: 14px;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
+.modal-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 6px; }
 
-.req {
-  color: var(--danger-fg);
-  font-weight: 700;
-}
-.opt {
-  opacity: 0.9;
-}
-
-.input {
-  width: 100%;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--fg);
-  padding: 0 10px;
-  outline: none;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.date-row {
+.range-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.mini-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.mini-hint { margin-top: 6px; font-size: 12px; color: var(--muted); }
 
-.date-field {
-  min-width: 0;
+/* Lightbox */
+.lb-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.68);
+  z-index: 8000;
 }
 
-.date-label {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
+.lb-modal {
+  position: fixed;
+  left: 50%;
+  top: 6%;
+  transform: translateX(-50%);
+  width: min(980px, calc(100vw - 24px));
+  max-height: calc(100vh - 70px);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  color: var(--fg);
+  z-index: 8500;
+  box-shadow: 0 18px 50px var(--shadow);
 }
 
-.input.date {
-  padding-right: 44px;
+.lb-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.lb-title { font-weight: 700; font-size: 13px; color: var(--fg); }
+
+.lb-img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: block;
 }
 
-.date-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--muted);
+.lb-video {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: block;
 }
-
-.input, select, button {
-  box-sizing: border-box;
-  min-width: 0;
-}
-
-.modal {
-  max-width: min(520px, calc(100vw - 24px));
-}
-
 </style>

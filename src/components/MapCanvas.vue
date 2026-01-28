@@ -204,10 +204,11 @@ function makeImageIcon(imageUrl, caption, width, height) {
   var h = Number(height)
   var frameH = Math.round(h * 0.69)
 
+  // background-image => immer sauber "cover", keine weißen Ränder durch img rendering
   var html =
     '<div class="asset-pin" style="width:' + w + 'px">' +
       '<div class="asset-frame" style="width:' + w + 'px; height:' + frameH + 'px">' +
-        '<img class="asset-img" src="' + imageUrl + '" />' +
+        '<div class="asset-bg" style="background-image:url(\'' + String(imageUrl).replaceAll("'", "%27") + '\')"></div>' +
       '</div>' +
       '<div class="asset-caption">' + escapeHtml(caption) + '</div>' +
       '<div class="asset-needle"></div>' +
@@ -220,6 +221,7 @@ function makeImageIcon(imageUrl, caption, width, height) {
     iconAnchor: [Math.round(w / 2), h]
   })
 }
+
 
 function makeVideoIcon(caption, width, height) {
   var w = Number(width)
@@ -270,14 +272,29 @@ async function setMarkerAssetIcon(marker, pin) {
     var media = null
     var i
 
-    for (i = 0; i < pin.media.length; i = i + 1) {
-      var m1 = pin.media[i]
-      if (m1 && m1.type === 'image' && m1.id) {
-        media = m1
-        break
+    // 1) Cover bevorzugen
+    if (pin.coverMediaId) {
+      for (i = 0; i < pin.media.length; i = i + 1) {
+        var mc = pin.media[i]
+        if (mc && mc.id && String(mc.id) === String(pin.coverMediaId)) {
+          media = mc
+          break
+        }
       }
     }
 
+    // 2) Fallback: erstes Bild
+    if (!media) {
+      for (i = 0; i < pin.media.length; i = i + 1) {
+        var m1 = pin.media[i]
+        if (m1 && m1.type === 'image' && m1.id) {
+          media = m1
+          break
+        }
+      }
+    }
+
+    // 3) Fallback: erstes Video
     if (!media) {
       for (i = 0; i < pin.media.length; i = i + 1) {
         var m2 = pin.media[i]
@@ -296,6 +313,13 @@ async function setMarkerAssetIcon(marker, pin) {
     if (map && map.getZoom) currentZoom = map.getZoom()
     var size = getAssetPinSize(currentZoom)
 
+    // WICHTIG: altes Image-ObjectURL sauber freigeben, wenn wir gleich ein neues setzen
+    if (marker.__assetData && marker.__assetData.type === 'image' && marker.__assetData.imageUrl) {
+      try {
+        URL.revokeObjectURL(marker.__assetData.imageUrl)
+      } catch (e) {}
+    }
+
     if (media.type === 'image') {
       var blob = await getMediaBlob(String(media.id))
       if (!blob) return
@@ -303,29 +327,21 @@ async function setMarkerAssetIcon(marker, pin) {
       var url = URL.createObjectURL(blob)
       markerObjectUrls.push(url)
 
-      marker.__assetData = {
-        type: 'image',
-        imageUrl: url,
-        caption: caption
-      }
-
+      marker.__assetData = { type: 'image', imageUrl: url, caption: caption }
       marker.setIcon(makeImageIcon(url, caption, size.w, size.h))
       return
     }
 
     if (media.type === 'video') {
-      marker.__assetData = {
-        type: 'video',
-        caption: caption
-      }
-
+      marker.__assetData = { type: 'video', caption: caption }
       marker.setIcon(makeVideoIcon(caption, size.w, size.h))
       return
     }
   } catch (e) {
-    // bleibt Loading-Icon
+    // ignore
   }
 }
+
 
 function renderAllPins(pins) {
   if (!pinsLayer) return
@@ -518,6 +534,33 @@ watch(
   align-items: center;
   justify-content: center;
   font-size: 16px;
+}
+:global(.asset-frame) {
+  border-radius: 10px;
+  overflow: hidden;
+
+
+  background: var(--panel);
+  border: 3px solid var(--panel);
+
+  box-shadow: 0 12px 24px var(--shadow);
+  position: relative;
+}
+
+
+:global(.asset-bg) {
+  width: 100%;
+  height: 100%;
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+
+  background-color: var(--panel);
+}
+:global(.asset-bg) {
+  transform: scale(1.02);
 }
 
 </style>

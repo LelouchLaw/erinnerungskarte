@@ -213,6 +213,17 @@ function applyAlbumFromRoute() {
 
 watch(
   function () {
+    return pinsStore.pins.map(function (p) {
+      return String(p.id) + ':' + String(p.updatedAt) + ':' + String(p.coverMediaId ?? '')
+    }).join('|')
+  },
+  function () {
+    rerenderPins()
+  }
+)
+
+watch(
+  function () {
     return ui.mapSelectedLocation
   },
   function (loc) {

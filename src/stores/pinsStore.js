@@ -125,7 +125,9 @@ function normalizePin(pin) {
     createdAt: created,
     updatedAt: updated,
 
-    media: normalizeMedia(p.media)
+    media: normalizeMedia(p.media),
+    coverMediaId: toTrimmedString(p.coverMediaId) || null,
+
   }
 }
 
@@ -226,6 +228,11 @@ export const usePinsStore = defineStore('pins', {
         if (patch.title !== undefined) {
           p.title = toTrimmedString(patch.title)
         }
+        
+        if (patch.coverMediaId !== undefined) {
+          var v = patch.coverMediaId === null ? null : String(patch.coverMediaId ?? '').trim()
+          p.coverMediaId = v ? v : null
+        }
 
         // Beschreibung
         if (patch.description !== undefined) {
@@ -264,6 +271,7 @@ export const usePinsStore = defineStore('pins', {
       }
 
       return false
+      
     },
 
     deletePinAndMedia: async function (id) {
