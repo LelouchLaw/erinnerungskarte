@@ -1,4 +1,4 @@
-<!-- src/views/TripDetailsView.vue -->
+
 <template>
   <div class="page">
     <div class="header">

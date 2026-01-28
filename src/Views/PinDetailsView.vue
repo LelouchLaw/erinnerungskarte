@@ -1,4 +1,4 @@
-<!-- src/views/PinDetailsView.vue -->
+
 <template>
   <div class="page">
     <h1 class="title">{{ pin && pin.title ? pin.title : 'Pin-Details' }}</h1>

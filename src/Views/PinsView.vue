@@ -1,4 +1,4 @@
-<!-- src/views/PinsView.vue -->
+
 <template>
   <div class="page">
     <h1 class="title">Pins</h1>

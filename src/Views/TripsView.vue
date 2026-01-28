@@ -1,4 +1,4 @@
-<!-- src/views/TripsView.vue -->
+
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useTripsStore } from '../stores/tripsStore'

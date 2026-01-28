@@ -1,4 +1,4 @@
-<!-- src/views/HomeView.vue -->
+
 <template>
   <div class="page">
     <div class="hero">

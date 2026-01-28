@@ -11,7 +11,7 @@ const app = createApp(App)
 
 app.use(pinia)
 
-// Theme möglichst früh anwenden (vor UI-Render)
+
 var theme = useThemeStore(pinia)
 theme.loadTheme()
 

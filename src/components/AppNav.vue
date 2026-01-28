@@ -1,4 +1,4 @@
-<!-- src/components/AppNav.vue -->
+
 <template>
   <header class="nav">
     <div class="brand" @click="goTo('/')">MemoryMap</div>
@@ -22,12 +22,14 @@
       </div>
     </div>
 
-    <nav class="tabs">
-      <RouterLink to="/" class="tab" active-class="active">Start</RouterLink>
-      <RouterLink to="/map" class="tab" active-class="active">Karte</RouterLink>
-      <RouterLink to="/pins" class="tab" active-class="active">Pins</RouterLink>
-      <RouterLink to="/trips" class="tab" active-class="active">Alben</RouterLink>
-    </nav>
+<nav class="tabs">
+  <RouterLink to="/map" class="tab" active-class="active">Karte</RouterLink>
+  <RouterLink to="/home" class="tab" active-class="active">Start</RouterLink>
+  <RouterLink to="/pins" class="tab" active-class="active">Pins</RouterLink>
+  <RouterLink to="/trips" class="tab" active-class="active">Alben</RouterLink>
+</nav>
+
+
 
     <div class="tools">
       <button class="toolbtn" type="button" @click="theme.toggleTheme()">

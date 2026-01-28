@@ -1,4 +1,4 @@
-<!-- src/components/MapCanvas.vue -->
+
 <template>
   <div ref="el" class="map"></div>
 </template>

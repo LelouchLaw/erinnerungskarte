@@ -1,4 +1,4 @@
-// src/stores/themeStore.js
+
 import { defineStore } from 'pinia'
 
 var STORAGE_KEY = 'memorymap_theme_v1'

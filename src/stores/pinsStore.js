@@ -1,4 +1,4 @@
-// src/stores/pinsStore.js
+
 import { defineStore } from 'pinia'
 import { deleteMedia, saveMediaFile } from '../services/mediaDb'
 

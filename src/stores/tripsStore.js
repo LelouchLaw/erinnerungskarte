@@ -1,4 +1,4 @@
-// src/stores/tripsStore.js
+
 import { defineStore } from 'pinia'
 
 var STORAGE_KEY = 'memorymap_trips_v1'

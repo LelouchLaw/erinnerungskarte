@@ -1,4 +1,4 @@
-<!-- src/views/MapView.vue -->
+
 <template>
   <div>
     <div class="map-wrap">
